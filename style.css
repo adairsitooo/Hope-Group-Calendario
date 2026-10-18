@@ -1204,6 +1204,29 @@ h4 {
   a {
     text-decoration: none;
   }
+   
+  /* Corrección del título del mes en el PDF */
+  .navegacion-mes {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .navegacion-mes h3 {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    writing-mode: horizontal-tb !important;
+    font-size: 16pt !important;
+    line-height: 1.3 !important;
+  }
+
 }
 
 
