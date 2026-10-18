@@ -1,0 +1,542 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="description"
+    content="Calendario de reuniones, asignaciones y cumpleaños de Hope Group, Grupo Esperanza."
+  >
+
+  <meta name="theme-color" content="#ffffff">
+
+  <title>Hope Group | Grupo Esperanza</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Cliente de Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Lógica de la aplicación -->
+  <script src="script.js" defer></script>
+</head>
+
+<body>
+
+  <!-- ENCABEZADO -->
+  <header class="encabezado">
+    <div class="encabezado-contenido">
+
+      <a href="#" class="identidad-grupo" aria-label="Hope Group, inicio">
+        <img
+          id="logoGrupo"
+          class="logo"
+          src="recursos/logo.png"
+          alt="Logo de Hope Group"
+          onerror="this.hidden=true; document.getElementById('logoPredeterminado').hidden=false;"
+        >
+
+        <span id="logoPredeterminado" class="logo-predeterminado" hidden>
+          HG
+        </span>
+
+        <span class="identidad-texto">
+          <span class="nombre-grupo">Hope Group</span>
+          <span class="subtitulo-grupo">Grupo Esperanza</span>
+        </span>
+      </a>
+
+      <a
+        href="#accesoLideres"
+        class="acceso-lideres"
+        id="enlaceAccesoLideres"
+      >
+        <span aria-hidden="true">♙</span>
+        Acceso de líderes
+      </a>
+
+    </div>
+  </header>
+
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="contenedor-principal">
+
+    <!-- INTRODUCCIÓN -->
+    <section class="introduccion">
+      <p class="texto-superior">ORGANIZACIÓN DEL GRUPO</p>
+
+      <h1>Calendario de Hope Group</h1>
+
+      <p class="descripcion-principal">
+        Reuniones, asignaciones y fechas especiales de nuestra comunidad.
+      </p>
+    </section>
+
+
+    <!-- AVISOS GENERALES -->
+    <div
+      id="avisoGeneral"
+      class="aviso"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+
+
+    <!-- ESTADO DE CONEXIÓN -->
+    <div class="estado-conexion" id="estadoConexion" role="status">
+      <span class="indicador-conexion" aria-hidden="true"></span>
+      <span>Comprobando conexión...</span>
+    </div>
+
+
+    <!-- CALENDARIO Y CONTENIDO -->
+    <div class="rejilla-principal">
+
+      <section class="columna-calendario">
+
+        <article class="tarjeta tarjeta-calendario">
+
+          <!-- CONTROLES DEL MES -->
+          <div class="encabezado-tarjeta encabezado-calendario">
+            <div>
+              <p class="texto-superior">PLANIFICACIÓN</p>
+              <h2>Calendario mensual</h2>
+            </div>
+
+            <button
+              type="button"
+              class="boton boton-secundario boton-pequeno"
+              id="btnImprimir"
+            >
+              Imprimir
+            </button>
+          </div>
+
+
+          <!-- SELECTORES DE MES Y AÑO -->
+          <div class="selector-periodo">
+
+            <div class="campo campo-periodo">
+              <label for="selectorMes">Mes</label>
+
+              <select id="selectorMes" name="mes">
+                <option value="0">Enero</option>
+                <option value="1">Febrero</option>
+                <option value="2">Marzo</option>
+                <option value="3">Abril</option>
+                <option value="4">Mayo</option>
+                <option value="5">Junio</option>
+                <option value="6">Julio</option>
+                <option value="7">Agosto</option>
+                <option value="8">Septiembre</option>
+                <option value="9">Octubre</option>
+                <option value="10">Noviembre</option>
+                <option value="11">Diciembre</option>
+              </select>
+            </div>
+
+            <div class="campo campo-periodo">
+              <label for="selectorAnio">Año</label>
+
+              <select id="selectorAnio" name="anio"></select>
+            </div>
+
+          </div>
+
+
+          <!-- NAVEGACIÓN DEL CALENDARIO -->
+          <div class="navegacion-mes">
+            <button
+              type="button"
+              class="boton boton-borde"
+              id="mesAnterior"
+              aria-label="Mes anterior"
+            >
+              <span aria-hidden="true">←</span>
+              <span class="texto-navegacion">Anterior</span>
+            </button>
+
+            <h3 id="mesActual" aria-live="polite">
+              Cargando calendario...
+            </h3>
+
+            <button
+              type="button"
+              class="boton boton-borde"
+              id="mesSiguiente"
+              aria-label="Mes siguiente"
+            >
+              <span class="texto-navegacion">Siguiente</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+
+          <!-- CALENDARIO GENERADO POR JAVASCRIPT -->
+          <div
+            id="calendario"
+            class="calendario"
+            role="grid"
+            aria-label="Calendario mensual"
+          >
+            <p class="mensaje-carga">Cargando calendario...</p>
+          </div>
+
+
+          <!-- LEYENDA -->
+          <div class="leyenda-calendario">
+            <span class="leyenda-item">
+              <span class="leyenda-punto punto-reunion"></span>
+              Reunión
+            </span>
+
+            <span class="leyenda-item">
+              <span class="leyenda-punto punto-cumple"></span>
+              Cumpleaños
+            </span>
+          </div>
+
+
+          <!-- DETALLE DEL DÍA SELECCIONADO -->
+          <section class="detalle-dia" aria-labelledby="tituloDetalle">
+
+            <div class="encabezado-tarjeta">
+              <div>
+                <p class="texto-superior">DETALLES</p>
+
+                <h3 id="tituloDetalle">
+                  Selecciona una fecha
+                </h3>
+              </div>
+            </div>
+
+            <div id="detalleDia" aria-live="polite">
+              <p class="texto-secundario">
+                Selecciona un día del calendario para consultar sus
+                reuniones y asignaciones.
+              </p>
+            </div>
+
+          </section>
+
+        </article>
+
+
+        <!-- CUMPLEAÑOS -->
+        <section
+          class="tarjeta tarjeta-cumpleanos"
+          aria-labelledby="tituloCumpleanos"
+        >
+
+          <div class="encabezado-tarjeta">
+            <div>
+              <p class="texto-superior">FECHAS ESPECIALES</p>
+              <h2 id="tituloCumpleanos">Cumpleaños del mes</h2>
+            </div>
+
+            <span class="icono-tarjeta" aria-hidden="true">♧</span>
+          </div>
+
+          <p class="texto-secundario">
+            Celebremos la vida de nuestros integrantes.
+          </p>
+
+          <div id="cumpleanosMes" class="lista-cumpleanos">
+            <p class="mensaje-carga">
+              Cargando cumpleaños...
+            </p>
+          </div>
+
+
+          <!-- REGISTRO PÚBLICO DE CUMPLEAÑOS -->
+          <details class="formulario-desplegable">
+            <summary>Registrar un cumpleaños</summary>
+
+            <form id="formCumpleanos" class="formulario">
+
+              <div class="campo">
+                <label for="nombreCumple">Nombre completo</label>
+
+                <input
+                  type="text"
+                  id="nombreCumple"
+                  name="nombre"
+                  placeholder="Nombre y apellidos"
+                  maxlength="120"
+                  autocomplete="name"
+                  required
+                >
+              </div>
+
+              <div class="campo">
+                <label for="fechaCumple">Fecha de nacimiento</label>
+
+                <input
+                  type="date"
+                  id="fechaCumple"
+                  name="fechaNacimiento"
+                  required
+                >
+
+                <small class="texto-secundario">
+                  Esta fecha completa será visible únicamente para
+                  los líderes autorizados. En el calendario público
+                  solo aparecerán el nombre y el día y mes.
+                </small>
+              </div>
+
+              <div class="campo">
+                <label for="telefonoCumple">
+                  Teléfono
+                  <span class="texto-secundario">(opcional)</span>
+                </label>
+
+                <input
+                  type="tel"
+                  id="telefonoCumple"
+                  name="telefono"
+                  placeholder="Número de teléfono"
+                  maxlength="25"
+                  autocomplete="tel"
+                >
+
+                <small class="texto-secundario">
+                  El teléfono será privado y accesible únicamente
+                  para los líderes autorizados.
+                </small>
+              </div>
+
+              <div
+                id="avisoCumpleanos"
+                class="aviso"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></div>
+
+              <button
+                type="submit"
+                class="boton boton-principal ancho-completo"
+                id="btnGuardarCumple"
+              >
+                Registrar cumpleaños
+              </button>
+
+            </form>
+          </details>
+
+        </section>
+
+      </section>
+
+
+      <!-- COLUMNA DE INFORMACIÓN -->
+      <aside class="columna-lateral">
+
+        <section class="tarjeta tarjeta-informacion">
+          <p class="texto-superior">NUESTRA COMUNIDAD</p>
+
+          <h2>Unidos en esperanza</h2>
+
+          <p>
+            Un espacio para organizar nuestras reuniones, servir
+            juntos y recordar las fechas importantes de nuestros
+            integrantes.
+          </p>
+
+          <div class="detalle-decorativo" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </section>
+
+
+        <!-- ACCESO PRIVADO PARA LÍDERES -->
+        <section
+          class="tarjeta tarjeta-panel-lider"
+          id="accesoLideres"
+          aria-labelledby="tituloAccesoLideres"
+        >
+
+          <div class="encabezado-tarjeta">
+            <div>
+              <p class="texto-superior">ÁREA PRIVADA</p>
+              <h2 id="tituloAccesoLideres">Acceso de líderes</h2>
+            </div>
+
+            <span class="icono-tarjeta" aria-hidden="true">⌑</span>
+          </div>
+
+          <p class="texto-secundario">
+            Inicia sesión para administrar cumpleaños, asignaciones
+            y la información del grupo.
+          </p>
+
+
+          <!-- FORMULARIO DE INICIO DE SESIÓN -->
+          <form id="formLogin" class="formulario">
+
+            <div class="campo">
+              <label for="correoLider">Correo electrónico</label>
+
+              <input
+                type="email"
+                id="correoLider"
+                name="correo"
+                placeholder="lider@ejemplo.com"
+                autocomplete="username"
+                required
+              >
+            </div>
+
+            <div class="campo">
+              <label for="claveLider">Contraseña</label>
+
+              <input
+                type="password"
+                id="claveLider"
+                name="clave"
+                placeholder="Tu contraseña"
+                autocomplete="current-password"
+                required
+              >
+            </div>
+
+            <div
+              id="avisoLogin"
+              class="aviso"
+              role="status"
+              aria-live="polite"
+              hidden
+            ></div>
+
+            <button
+              type="submit"
+              class="boton boton-principal ancho-completo"
+              id="btnLogin"
+            >
+              Iniciar sesión
+            </button>
+
+          </form>
+
+
+          <!-- PANEL VISIBLE PARA LÍDERES AUTENTICADOS -->
+          <div id="panelLider" hidden>
+
+            <div class="separador"></div>
+
+            <p class="texto-superior">SESIÓN ACTIVA</p>
+
+            <p class="correo-activo" id="correoActivo"></p>
+
+            <div class="acciones-lider">
+              <button
+                type="button"
+                class="boton boton-secundario ancho-completo"
+                id="btnActualizar"
+              >
+                Actualizar información
+              </button>
+
+              <button
+                type="button"
+                class="boton boton-secundario ancho-completo"
+                id="btnExportar"
+              >
+                Exportar cumpleaños CSV
+              </button>
+
+              <button
+                type="button"
+                class="boton boton-secundario ancho-completo"
+                id="btnGestionarReuniones"
+              >
+                Gestionar reuniones
+              </button>
+
+              <button
+                type="button"
+                class="boton boton-secundario ancho-completo"
+                id="btnGestionarCumpleanos"
+              >
+                Gestionar cumpleaños
+              </button>
+
+              <button
+                type="button"
+                class="boton boton-secundario ancho-completo"
+                id="btnGestionarDocumento"
+              >
+                Gestionar documentos
+              </button>
+
+              <div
+                id="contenidoAdministracion"
+                class="contenido-administracion"
+              ></div>
+
+              <button
+                type="button"
+                class="boton boton-peligro ancho-completo"
+                id="btnLogout"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+
+          </div>
+
+        </section>
+
+      </aside>
+
+    </div>
+
+  </main>
+
+
+  <!-- PIE DE PÁGINA -->
+  <footer class="pie-pagina">
+    <div class="pie-contenido">
+      <div>
+        <strong class="nombre-pie">Hope Group</strong>
+
+        <p>Grupo Esperanza</p>
+      </div>
+
+      <p class="texto-pie">
+        Unidos en fe, amor y esperanza.
+      </p>
+
+      <a href="#accesoLideres" class="enlace-pie">
+        Área de líderes
+      </a>
+    </div>
+
+    <div class="copyright">
+      <p>
+        © <span id="anioActual"></span> Hope Group.
+        Todos los derechos reservados.
+      </p>
+    </div>
+  </footer>
+
+
+  <!-- IMPRESIÓN -->
+  <div id="zonaImpresion" hidden></div>
+
+
+  <!-- AÑO AUTOMÁTICO DEL PIE DE PÁGINA -->
+  <script>
+    document.getElementById("anioActual").textContent =
+      new Date().getFullYear();
+  </script>
+
+</body>
+</html>
