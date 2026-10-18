@@ -1101,15 +1101,60 @@ async function mostrarGestionCumpleanos() {
   });
 }
 
-
 /* =========================================================
    14. GESTIONAR REUNIONES Y ASIGNACIONES
    ========================================================= */
 
+// Obtiene el plan del mes seleccionado o crea uno como borrador.
+async function obtenerPlanMes(crearSiNoExiste = false) {
+  if (!db || !esLider) {
+    throw new Error("Debes iniciar sesión como líder.");
+  }
+
+  const anio = fechaSeleccionada.getFullYear();
+  const mes = fechaSeleccionada.getMonth() + 1;
+
+  const { data, error } = await db
+    .from("monthly_plans")
+    .select("id, year, month, status")
+    .eq("year", anio)
+    .eq("month", mes)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data || !crearSiNoExiste) return data;
+
+  const { data: nuevoPlan, error: errorCrear } = await db
+    .from("monthly_plans")
+    .insert({
+      year: anio,
+      month: mes,
+      status: "draft",
+      created_by: sesionActual.user.id
+    })
+    .select("id, year, month, status")
+    .single();
+
+  if (errorCrear) {
+    // Puede que otro intento ya haya creado el plan.
+    const { data: existente, error: errorBuscar } = await db
+      .from("monthly_plans")
+      .select("id, year, month, status")
+      .eq("year", anio)
+      .eq("month", mes)
+      .maybeSingle();
+
+    if (errorBuscar || !existente) throw errorCrear;
+    return existente;
+  }
+
+  return nuevoPlan;
+}
+
+
+// Panel principal de reuniones.
 async function mostrarGestionReuniones() {
   if (!esLider) return;
-
-  await cargarDatosPrivados();
 
   const contenedor = $("contenidoAdministracion");
   if (!contenedor) return;
@@ -1120,52 +1165,275 @@ async function mostrarGestionReuniones() {
   titulo.textContent = "Gestionar reuniones";
   contenedor.appendChild(titulo);
 
-  const nota = document.createElement("p");
-  nota.textContent =
-    "Selecciona una reunión para modificar su fecha, predicador, refacción o cancelación.";
-  contenedor.appendChild(nota);
+  const descripcion = document.createElement("p");
+  descripcion.textContent =
+    "Selecciona la fecha, asigna la predicación y la refacción, y guarda la reunión.";
+  contenedor.appendChild(descripcion);
 
-  if (!reunionesPrivadas.length) {
+  try {
+    const plan = await obtenerPlanMes(false);
+    await cargarDatosPrivados();
+
+    const estado = document.createElement("p");
+    estado.textContent = plan
+      ? `Estado del plan: ${
+          plan.status === "published" ? "Publicado" :
+          plan.status === "archived" ? "Archivado" : "Borrador"
+        }`
+      : "Todavía no existe un plan para este mes.";
+    contenedor.appendChild(estado);
+
+    // Formulario para crear reuniones.
+    const formulario = document.createElement("form");
+    formulario.id = "formNuevaReunion";
+    formulario.className = "formulario";
+
+    const fechaInicial = fechaISO(new Date(
+      fechaSeleccionada.getFullYear(),
+      fechaSeleccionada.getMonth(),
+      Math.max(1, fechaSeleccionada.getDate())
+    ));
+
+    formulario.innerHTML = `
+      <h4>Agregar una reunión</h4>
+
+      <div class="campo">
+        <label for="nuevaFechaReunion">Fecha de la reunión</label>
+        <input
+          type="date"
+          id="nuevaFechaReunion"
+          value="${fechaInicial}"
+          required
+        >
+      </div>
+
+      <div class="campo">
+        <label for="nuevoPredicador">Quién dará la prédica</label>
+        <input
+          type="text"
+          id="nuevoPredicador"
+          maxlength="120"
+          placeholder="Nombre del predicador"
+        >
+      </div>
+
+      <div class="campo">
+        <label for="nuevaRefaccion">Responsable(s) de la refacción</label>
+        <input
+          type="text"
+          id="nuevaRefaccion"
+          maxlength="250"
+          placeholder="Uno o varios nombres, separados por comas"
+        >
+      </div>
+
+      <div class="campo">
+        <label>
+          <input type="checkbox" id="nuevaReunionCancelada">
+          No habrá reunión ese día
+        </label>
+      </div>
+
+      <button
+        type="submit"
+        class="boton boton-principal ancho-completo"
+        id="btnCrearReunion"
+      >
+        Guardar reunión
+      </button>
+    `;
+
+    formulario.addEventListener("submit", guardarNuevaReunion);
+    contenedor.appendChild(formulario);
+
+    // Publicar el plan hace visibles sus reuniones en el calendario.
+    const botonPublicar = document.createElement("button");
+    botonPublicar.type = "button";
+    botonPublicar.className = "boton boton-secundario ancho-completo";
+    botonPublicar.textContent = plan?.status === "published"
+      ? "El plan de este mes ya está publicado"
+      : "Publicar calendario de este mes";
+    botonPublicar.disabled = plan?.status === "published";
+
+    botonPublicar.addEventListener("click", publicarPlanMes);
+    contenedor.appendChild(botonPublicar);
+
+    const subtitulo = document.createElement("h4");
+    subtitulo.textContent = "Reuniones registradas";
+    contenedor.appendChild(subtitulo);
+
+    if (!reunionesPrivadas.length) {
+      const mensaje = document.createElement("p");
+      mensaje.textContent =
+        "Todavía no hay reuniones. Usa el formulario de arriba para agregar la primera.";
+      contenedor.appendChild(mensaje);
+      return;
+    }
+
+    reunionesPrivadas.forEach((reunion) => {
+      const fila = document.createElement("div");
+      fila.className = "fila-administracion";
+
+      const info = document.createElement("div");
+      const fecha = parsearFechaLocal(reunion.meeting_date);
+
+      const nombre = document.createElement("strong");
+      nombre.textContent = fecha
+        ? fechaLarga(fecha)
+        : String(reunion.meeting_date);
+
+      const predica = document.createElement("p");
+      predica.textContent = reunion.cancelled
+        ? "Reunión cancelada"
+        : `Prédica: ${reunion.preacher || "Por asignar"}`;
+
+      const refaccion = document.createElement("p");
+      refaccion.textContent = reunion.cancelled
+        ? ""
+        : `Refacción: ${
+            formatearResponsables(reunion.snack_responsible) || "Por asignar"
+          }`;
+
+      info.append(nombre, predica, refaccion);
+
+      const botonEditar = document.createElement("button");
+      botonEditar.type = "button";
+      botonEditar.className = "boton boton-secundario boton-pequeno";
+      botonEditar.textContent = "Editar";
+      botonEditar.addEventListener("click", () => editarReunion(reunion));
+
+      fila.append(info, botonEditar);
+      contenedor.appendChild(fila);
+    });
+  } catch (error) {
+    console.error("Error al gestionar reuniones:", error);
+
     const mensaje = document.createElement("p");
+    mensaje.className = "aviso aviso-error";
     mensaje.textContent =
-      "No hay reuniones registradas para este mes. La creación automática de reuniones debe configurarse en el sistema.";
+      "No se pudo abrir la administración. Comprueba los permisos de Supabase y la conexión.";
     contenedor.appendChild(mensaje);
+  }
+}
+
+
+// Guarda una reunión nueva en Supabase.
+async function guardarNuevaReunion(evento) {
+  evento.preventDefault();
+
+  if (!esLider || !db) return;
+
+  const fecha = $("nuevaFechaReunion")?.value;
+  const predicador = normalizarTexto($("nuevoPredicador")?.value);
+  const refaccion = normalizarTexto($("nuevaRefaccion")?.value);
+  const cancelada = $("nuevaReunionCancelada")?.checked || false;
+  const boton = $("btnCrearReunion");
+
+  if (!fechaValida(fecha)) {
+    alert("Selecciona una fecha válida.");
     return;
   }
 
-  reunionesPrivadas.forEach((reunion) => {
-    const fila = document.createElement("div");
-    fila.className = "fila-administracion";
+  const fechaReunion = parsearFechaLocal(fecha);
 
-    const info = document.createElement("div");
-    const fecha = parsearFechaLocal(reunion.meeting_date);
+  // Evita guardar una reunión dentro del plan de otro mes.
+  if (
+    fechaReunion.getFullYear() !== fechaSeleccionada.getFullYear() ||
+    fechaReunion.getMonth() !== fechaSeleccionada.getMonth()
+  ) {
+    alert("La fecha debe pertenecer al mes seleccionado en el calendario.");
+    return;
+  }
 
-    const nombre = document.createElement("strong");
-    nombre.textContent = fecha
-      ? formatoCorto(fecha)
-      : String(reunion.meeting_date);
+  if (predicador.length > 120 || refaccion.length > 250) {
+    alert("Revisa la longitud de los nombres ingresados.");
+    return;
+  }
 
-    const estado = document.createElement("p");
-    estado.textContent = reunion.cancelled
-      ? "Cancelada"
-      : `Predicador: ${reunion.preacher || "Por asignar"}`;
+  if (boton) boton.disabled = true;
 
-    info.append(nombre, estado);
+  try {
+    const plan = await obtenerPlanMes(true);
 
-    const boton = document.createElement("button");
-    boton.type = "button";
-    boton.className = "boton boton-secundario boton-pequeno";
-    boton.textContent = "Editar";
+    if (plan.status === "archived") {
+      throw new Error(
+        "Este plan está archivado. Selecciona otro mes o revisa su estado."
+      );
+    }
 
-    boton.addEventListener("click", () => editarReunion(reunion));
+    const { error } = await db
+      .from("meetings")
+      .insert({
+        monthly_plan_id: plan.id,
+        meeting_date: fecha,
+        cancelled: cancelada,
+        preacher: cancelada ? null : (predicador || null),
+        snack_responsible: cancelada ? null : (refaccion || null)
+      });
 
-    fila.append(info, boton);
-    contenedor.appendChild(fila);
-  });
+    if (error) {
+      if (error.code === "23505") {
+        throw new Error("Ya existe una reunión registrada para esa fecha.");
+      }
+      throw error;
+    }
+
+    alert(
+      plan.status === "published"
+        ? "Reunión guardada. Se actualizará el calendario público."
+        : "Reunión guardada como borrador. Publica el plan para mostrarla al grupo."
+    );
+
+    await cargarDatos();
+    await mostrarGestionReuniones();
+  } catch (error) {
+    console.error("Error al crear reunión:", error);
+    alert(error.message || "No se pudo guardar la reunión. Revisa los permisos de Supabase.");
+  } finally {
+    if (boton) boton.disabled = false;
+  }
 }
 
+
+// Publica el plan mensual para que aparezca en el calendario público.
+async function publicarPlanMes() {
+  if (!esLider || !db) return;
+
+  const confirmar = window.confirm(
+    `¿Publicar el calendario de ${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}?`
+  );
+
+  if (!confirmar) return;
+
+  try {
+    const plan = await obtenerPlanMes(true);
+
+    if (plan.status === "archived") {
+      alert("No se puede publicar un plan archivado.");
+      return;
+    }
+
+    const { error } = await db
+      .from("monthly_plans")
+      .update({ status: "published" })
+      .eq("id", plan.id);
+
+    if (error) throw error;
+
+    alert("¡Calendario publicado!");
+
+    await cargarDatos();
+    await mostrarGestionReuniones();
+  } catch (error) {
+    console.error("Error al publicar el plan:", error);
+    alert("No se pudo publicar. Verifica los permisos de monthly_plans en Supabase.");
+  }
+}
+
+
+// Edita una reunión existente.
 async function editarReunion(reunion) {
-  if (!esLider) return;
+  if (!esLider || !db) return;
 
   const fechaActual = String(reunion.meeting_date).slice(0, 10);
 
@@ -1173,7 +1441,6 @@ async function editarReunion(reunion) {
     "Fecha de la reunión (AAAA-MM-DD):",
     fechaActual
   );
-
   if (nuevaFecha === null) return;
 
   if (!fechaValida(nuevaFecha)) {
@@ -1181,71 +1448,63 @@ async function editarReunion(reunion) {
     return;
   }
 
-  const nuevoPredicador = window.prompt(
-    "Nombre del predicador (deja vacío para Por asignar):",
-    reunion.preacher || ""
-  );
+  const fechaValidada = parsearFechaLocal(nuevaFecha);
 
-  if (nuevoPredicador === null) return;
-
-  const nuevaRefaccion = window.prompt(
-    "Responsables de refacción (separa varios nombres con comas):",
-    formatearResponsables(reunion.snack_responsible)
-  );
-
-  if (nuevaRefaccion === null) return;
-
-  const estadoActual = reunion.cancelled ? "sí" : "no";
-
-  const cancelada = window.prompt(
-    "¿Cancelar la reunión? Escribe sí o no:",
-    estadoActual
-  );
-
-  if (cancelada === null) return;
-
-  const esCancelada = ["sí", "si", "s", "yes", "y"].includes(
-    cancelada.trim().toLowerCase()
-  );
-
-  const { error } = await db
-    .from("meetings")
-    .update({
-      meeting_date: nuevaFecha,
-      preacher: normalizarTexto(nuevoPredicador) || null,
-      snack_responsible: normalizarTexto(nuevaRefaccion) || null,
-      cancelled: esCancelada
-    })
-    .eq("id", reunion.id);
-
-  if (error) {
-    console.error("Error al actualizar reunión:", error);
-    alert(
-      "No se pudo guardar la reunión. Verifica las políticas RLS y la estructura de la tabla."
-    );
+  if (
+    fechaValidada.getFullYear() !== fechaSeleccionada.getFullYear() ||
+    fechaValidada.getMonth() !== fechaSeleccionada.getMonth()
+  ) {
+    alert("Para editarla, selecciona primero el mes al que pertenece la reunión.");
     return;
   }
 
-  alert("Reunión actualizada correctamente.");
+  const nuevoPredicador = window.prompt(
+    "Nombre del predicador:",
+    reunion.preacher || ""
+  );
+  if (nuevoPredicador === null) return;
 
-  // Si cambió de mes, navegar al mes de la nueva fecha.
-  const fecha = parsearFechaLocal(nuevaFecha);
+  const nuevaRefaccion = window.prompt(
+    "Responsable(s) de refacción, separados por comas:",
+    formatearResponsables(reunion.snack_responsible)
+  );
+  if (nuevaRefaccion === null) return;
 
-  if (
-    fecha &&
-    (
-      fecha.getMonth() !== fechaSeleccionada.getMonth() ||
-      fecha.getFullYear() !== fechaSeleccionada.getFullYear()
-    )
-  ) {
-    fechaSeleccionada = fecha;
-    sincronizarSelectoresPeriodo();
-    actualizarTituloMes();
+  const respuesta = window.prompt(
+    "¿Cancelar la reunión? Escribe sí o no:",
+    reunion.cancelled ? "sí" : "no"
+  );
+  if (respuesta === null) return;
+
+  const cancelada = ["sí", "si", "s", "yes", "y"].includes(
+    respuesta.trim().toLowerCase()
+  );
+
+  try {
+    const { error } = await db
+      .from("meetings")
+      .update({
+        meeting_date: nuevaFecha,
+        preacher: cancelada ? null : (normalizarTexto(nuevoPredicador) || null),
+        snack_responsible: cancelada
+          ? null
+          : (normalizarTexto(nuevaRefaccion) || null),
+        cancelled: cancelada
+      })
+      .eq("id", reunion.id);
+
+    if (error) throw error;
+
+    alert("Reunión actualizada correctamente.");
+
+    await cargarDatos();
+    await mostrarGestionReuniones();
+  } catch (error) {
+    console.error("Error al actualizar reunión:", error);
+    alert("No se pudo guardar la reunión. Verifica los permisos y la estructura de la tabla.");
   }
-
-  await cargarDatos();
-  await mostrarGestionReuniones();
 }
+
 
 
 /* =========================================================
