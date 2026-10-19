@@ -1410,11 +1410,12 @@ async function guardarNuevoEvento(evento) {
       return;
     }
     const { error } = await db.from("events").insert({
-      monthly_plan_id: plan.id,
-      event_date: fecha,
-      title: elemento("nuevoEventoTitulo").value.trim(),
-      preacher: elemento("nuevoEventoResponsable").value.trim() || null,
-snack_responsible: elemento("nuevoEventoRefaccion").value.trim() || null
+  monthly_plan_id: plan.id,
+  event_date: fecha,
+  title: elemento("nuevoEventoTitulo").value.trim(),
+  preacher: elemento("nuevoEventoResponsable").value.trim() || null,
+  snack_responsible: elemento("nuevoEventoRefaccion").value.trim() || null
+});
     if (error) throw error;
     await cargarDatos(true);
     await mostrarGestionEventos();
