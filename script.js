@@ -523,9 +523,7 @@ async function cargarDatos(forzar = false) {
         .lt("meeting_date", fechaFin),
       db
         .from("events")
-        .select(
-          "id, monthly_plan_id, event_date, title, preacher, snack_responsible"
-        )
+        .select("id, monthly_plan_id, meeting_date, meeting_type, cancelled, preacher, snack_responsible")
         .gte("event_date", fechaInicio)
         .lt("event_date", fechaFin),
       db
@@ -657,9 +655,20 @@ function renderizarCalendario() {
     celda.appendChild(numero);
     const marcas = document.createElement("span");
     marcas.className = "marcas-dia";
-    if (reuniones.some(r => r.meeting_date === fecha)) {
-      agregarMarca(marcas, "marca-reunion", "Reunión");
-    }
+    reuniones
+      .filter(r => r.meeting_date === fecha)
+      .forEach(reunion => {
+        const tipo = reunion.meeting_type === "discipulado"
+          ? "Discipulado"
+          : "Grupo";
+        const clase = reunion.meeting_type === "discipulado"
+          ? "marca-discipulado"
+          : "marca-reunion";
+        const etiqueta = reunion.cancelled
+          ? `${tipo} (cancelado)`
+          : tipo;
+        agregarMarca(marcas, clase, etiqueta);
+      });
     if (cumpleanos.some(p => p.birth_date?.slice(5) === fecha.slice(5))) {
       agregarMarca(marcas, "marca-cumple", "Cumpleaños");
     }
@@ -668,7 +677,7 @@ function renderizarCalendario() {
     }
     celda.appendChild(marcas);
     celda.addEventListener("click", () => {
-      contenedor.querySelectorAll(".dia.seleccionado")
+   contenedor.querySelectorAll(".dia.seleccionado")
         .forEach(nodo => nodo.classList.remove("seleccionado"));
       celda.classList.add("seleccionado");
       renderizarDetalleDia(fecha);
@@ -710,11 +719,18 @@ function renderizarDetalleDia(fecha) {
   );
   const secciones = [];
   reunionesDia.forEach(reunion => {
+    const tipoReunion = reunion.meeting_type === "discipulado"
+      ? "Discipulado"
+      : "Grupo";
     secciones.push({
-      clase: "detalle-reunion",
-      titulo: reunion.cancelled ? "No habrá reunión" : "Reunión",
+      clase: reunion.meeting_type === "discipulado"
+        ? "detalle-discipulado"
+        : "detalle-reunion",
+      titulo: reunion.cancelled
+        ? `${tipoReunion} — Cancelado`
+        : tipoReunion,
       texto: reunion.cancelled
-        ? "La reunión está cancelada."
+        ? "Esta reunión está cancelada."
         : `Predicador: ${reunion.preacher || "Por asignar"} · Refacción: ${reunion.snack_responsible || "Por asignar"}`
     });
   });
@@ -1087,6 +1103,13 @@ async function mostrarGestionReuniones() {
       >
     </div>
     <div class="campo">
+      <label for="nuevoTipoReunion">Tipo de reunión</label>
+      <select id="nuevoTipoReunion" required>
+        <option value="grupo">Grupo</option>
+        <option value="discipulado">Discipulado</option>
+      </select>
+    </div>
+    <div class="campo">
       <label for="nuevoPredicador">Predicador (opcional)</label>
       <input id="nuevoPredicador" maxlength="120">
     </div>
@@ -1121,12 +1144,20 @@ async function mostrarGestionReuniones() {
       const fila = document.createElement("div");
       fila.className = "fila-administracion";
       const info = document.createElement("div");
+      const tipoReunion = reunion.meeting_type === "discipulado"
+        ? "Discipulado"
+        : "Grupo";
       info.innerHTML = `
-        <strong>${escaparHTML(formatoFecha(reunion.meeting_date))}</strong>
+        <strong>
+          ${escaparHTML(formatoFecha(reunion.meeting_date))}
+          — ${tipoReunion}
+        </strong>
         <p>${reunion.cancelled
-          ? "No habrá reunión"
+          ? "Reunión cancelada"
           : `Predicador: ${escaparHTML(reunion.preacher || "Por asignar")}`}</p>
-        <p>Refacción: ${escaparHTML(reunion.snack_responsible || "Por asignar")}</p>
+        ${reunion.cancelled
+          ? ""
+          : `<p>Refacción: ${escaparHTML(reunion.snack_responsible || "Por asignar")}</p>`}
       `;
       const acciones = document.createElement("div");
       acciones.className = "acciones-lider";
@@ -1168,6 +1199,7 @@ async function guardarNuevaReunion(evento) {
     const { error } = await db.from("meetings").insert({
       monthly_plan_id: plan.id,
       meeting_date: fecha,
+      meeting_type: elemento("nuevoTipoReunion").value,
       cancelled: elemento("nuevaReunionCancelada").checked,
       preacher: elemento("nuevoPredicador").value.trim() || null,
       snack_responsible: elemento("nuevaRefaccion").value.trim() || null
@@ -1185,6 +1217,7 @@ async function guardarNuevaReunion(evento) {
     );
   }
 }
+
 async function editarReunion(reunion) {
   if (!exigirLider()) return;
   const fecha = prompt(
@@ -1192,6 +1225,23 @@ async function editarReunion(reunion) {
     reunion.meeting_date
   );
   if (fecha === null) return;
+  const tipoActual = reunion.meeting_type === "discipulado"
+    ? "discipulado"
+    : "grupo";
+  const tipoIngresado = prompt(
+    "Tipo de reunión:\nEscribe grupo o discipulado:",
+    tipoActual
+  );
+  if (tipoIngresado === null) return;
+  const tipo = tipoIngresado.trim().toLowerCase();
+  if (!["grupo", "discipulado"].includes(tipo)) {
+    mostrarAviso(
+      "avisoGeneral",
+      "El tipo debe ser grupo o discipulado.",
+      "error"
+    );
+    return;
+  }
   const predicador = prompt(
     "Predicador (vacío = Por asignar):",
     reunion.preacher || ""
@@ -1206,7 +1256,11 @@ async function editarReunion(reunion) {
     "¿Marcar esta reunión como cancelada?\n\nAceptar = No habrá reunión.\nCancelar = Mantener reunión activa."
   );
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    mostrarAviso("avisoGeneral", "La fecha no es válida.", "error");
+    mostrarAviso(
+      "avisoGeneral",
+      "La fecha no es válida.",
+      "error"
+    );
     return;
   }
   try {
@@ -1214,6 +1268,7 @@ async function editarReunion(reunion) {
       .from("meetings")
       .update({
         meeting_date: fecha,
+        meeting_type: tipo,
         preacher: predicador.trim() || null,
         snack_responsible: refaccion.trim() || null,
         cancelled: cancelada,
@@ -1223,10 +1278,18 @@ async function editarReunion(reunion) {
     if (error) throw error;
     await cargarDatos(true);
     await mostrarGestionReuniones();
-    mostrarAviso("avisoGeneral", "Reunión actualizada.", "exito");
+    mostrarAviso(
+      "avisoGeneral",
+      "Reunión actualizada.",
+      "exito"
+    );
   } catch (error) {
     console.error(error);
-    mostrarAviso("avisoGeneral", "No se pudo editar la reunión.", "error");
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo editar la reunión.",
+      "error"
+    );
   }
 }
 async function eliminarReunion(reunion) {
@@ -1484,6 +1547,7 @@ function mostrarAvisoDocumentos() {
    18. IMPRESIÓN DEL MES / GENERAR PDF
    ========================================================= */
 
+
 function imprimirCalendario() {
   if (!esMiembroAutorizado()) {
     mostrarAviso(
@@ -1532,7 +1596,7 @@ function imprimirCalendario() {
     .sort((a, b) =>
       a.birth_date.slice(5, 10)
         .localeCompare(b.birth_date.slice(5, 10)) ||
-      (pNombre(a)).localeCompare(pNombre(b), "es")
+      pNombre(a).localeCompare(pNombre(b), "es")
     );
 
   const plan = planesMes.find(p =>
@@ -1550,7 +1614,6 @@ function imprimirCalendario() {
   const cantidadDias =
     new Date(anio, mes + 1, 0).getDate();
 
-  /* Construir la cuadrícula mensual completa */
   const celdas = [];
 
   for (let i = 0; i < primerDia; i++) {
@@ -1577,28 +1640,33 @@ function imprimirCalendario() {
       p => p.birth_date.slice(5, 10) === fecha.slice(5)
     );
 
-    
-const marcas = [
-  ...reunionesDia.map(r => `
-    <div class="reporte-marca">
-      ${r.cancelled
-        ? "No habrá reunión"
-        : "Reunión"}
-    </div>
-  `),
+    const marcas = [
+      ...reunionesDia.map(r => {
+        const discipulado = r.meeting_type === "discipulado";
+        const tipo = discipulado ? "Discipulado" : "Grupo";
+        const clase = discipulado
+          ? "reporte-marca-discipulado"
+          : "reporte-marca-grupo";
 
-  ...eventosDia.map(e => `
-    <div class="reporte-marca">
-      ${escapar(e.title || "Evento")}
-    </div>
-  `),
+        return `
+          <div class="reporte-marca ${clase}">
+            ${tipo}${r.cancelled ? " — Cancelado" : ""}
+          </div>
+        `;
+      }),
 
-  ...cumpleanosDia.map(p => `
-    <div class="reporte-marca reporte-marca-cumple">
-      Cumpleaños de ${escapar(p.full_name)}
-    </div>
-  `)
-].join("");
+      ...eventosDia.map(e => `
+        <div class="reporte-marca">
+          ${escapar(e.title || "Evento")}
+        </div>
+      `),
+
+      ...cumpleanosDia.map(p => `
+        <div class="reporte-marca reporte-marca-cumple">
+          Cumpleaños de ${escapar(p.full_name)}
+        </div>
+      `)
+    ].join("");
 
     celdas.push(`
       <div class="reporte-celda">
@@ -1619,7 +1687,6 @@ const marcas = [
     `);
   }
 
-  /* Unir reuniones y eventos y ordenarlos cronológicamente */
   const actividades = [
     ...reunionesMes.map(r => ({
       fecha: r.meeting_date,
@@ -1644,6 +1711,10 @@ const marcas = [
 
         if (actividad.tipo === "reunion") {
           const r = actividad.datos;
+          const tipoReunion =
+            r.meeting_type === "discipulado"
+              ? "Discipulado"
+              : "Grupo";
 
           return `
             <article class="reporte-actividad">
@@ -1651,12 +1722,12 @@ const marcas = [
 
               <div class="reporte-actividad-contenido">
                 <h3>
-                  ${r.cancelled
-                    ? "No habrá reunión"
-                    : "Reunión de Hope Group"}
+                  ${tipoReunion}${r.cancelled ? " — Cancelado" : ""}
                 </h3>
 
-                ${r.cancelled ? "" : `
+                ${r.cancelled ? `
+                  <p>Esta reunión está cancelada.</p>
+                ` : `
                   <p>
                     <strong>Predicador:</strong>
                     ${escapar(r.preacher || "Por asignar")}
@@ -1684,7 +1755,7 @@ const marcas = [
               <h3>${escapar(e.title || "Evento")}</h3>
 
               <p>
-                <strong>Predicador / responsable:</strong>
+                <strong>Responsable:</strong>
                 ${escapar(e.preacher || "Por asignar")}
               </p>
 
@@ -1739,11 +1810,9 @@ const marcas = [
       </p>
     `;
 
-  /* Crear el documento mensual */
   zona.innerHTML = `
     <div class="reporte-mensual">
       <header class="reporte-encabezado">
-
         <div class="reporte-marca-institucional">
           <img
             class="reporte-logo"
@@ -1778,9 +1847,7 @@ const marcas = [
         ` : ""}
       </header>
 
-      <section
-        class="reporte-seccion reporte-seccion-calendario"
-      >
+      <section class="reporte-seccion reporte-seccion-calendario">
         <h2>Calendario del mes</h2>
 
         <div class="reporte-calendario">
@@ -1796,66 +1863,47 @@ const marcas = [
         </div>
 
         <div class="reporte-leyenda">
-          <span>Reunión</span>
+          <span class="reporte-marca-grupo">Grupo</span>
+          <span class="reporte-marca-discipulado">Discipulado</span>
           <span>Evento</span>
           <span>Cumpleaños</span>
         </div>
       </section>
-
       <section class="reporte-seccion">
         <h2>Eventos y reuniones</h2>
-
         <div class="reporte-lista-actividades">
           ${htmlActividades}
         </div>
       </section>
-
       <section class="reporte-seccion">
         <h2>Cumpleañeros del mes</h2>
         ${htmlCumpleanos}
       </section>
-
       <footer class="reporte-pie">
         Hope Group · Documento generado el
-        ${escapar(
-          new Date().toLocaleDateString("es-GT")
-        )}
+        ${escapar(new Date().toLocaleDateString("es-GT"))}
       </footer>
     </div>
   `;
-
-  /* Mostrar únicamente el documento al imprimir */
   zona.hidden = false;
   document.body.classList.add("imprimiendo-calendario");
-
   let limpiezaProgramada = false;
-
   const limpiarDespues = () => {
     if (limpiezaProgramada) return;
     limpiezaProgramada = true;
-
     zona.hidden = true;
     document.body.classList.remove(
       "imprimiendo-calendario"
     );
-
     window.removeEventListener(
       "afterprint",
       limpiarDespues
     );
   };
-
-  window.addEventListener(
-    "afterprint",
-    limpiarDespues
-  );
-
-  /* Esperar a que el logo cargue antes de imprimir */
+  window.addEventListener("afterprint", limpiarDespues);
   const imagenes = [...zona.querySelectorAll("img")];
-
   Promise.all(imagenes.map(img => {
     if (img.complete) return Promise.resolve();
-
     return new Promise(resolve => {
       img.addEventListener("load", resolve, { once: true });
       img.addEventListener("error", resolve, { once: true });
@@ -1867,11 +1915,6 @@ const marcas = [
       });
     });
   });
-}
-
-/* Nombre seguro para ordenar cumpleaños */
-function pNombre(persona) {
-  return String(persona?.full_name || "");
 }
 
 /* =========================
