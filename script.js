@@ -1,49 +1,201 @@
-
 /* =========================================================
-   HOPE GROUP — SCRIPT PRINCIPAL
-   Archivo: script.js
+   HOPE GROUP — script.js
+   Calendario, cumpleaños, reuniones, eventos y accesos.
+   Requiere:
+   - Supabase Auth.
+   - leader_profiles
+   - estaca_profiles
+   - birthdays
+   - monthly_plans
+   - meetings
+   - events
+   - access_requests
+   La seguridad real debe estar configurada en Supabase RLS.
    ========================================================= */
-
-/* 1. CONFIGURACIÓN DE SUPABASE
-   Sustituye estos valores por los de tu proyecto.
-   Usa únicamente la clave publicable (anon/publishable).
-   NUNCA coloques la service_role en este archivo.
-   ========================================================= */
-
+"use strict";
+/* =========================
+   1. CONFIGURACIÓN
+   ========================= */
 const SUPABASE_URL = "https://duakloumuwgjapduolqc.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_y1iV_TM16wjWbdV5s9mafg_7BymHxru";
-
-let db = null;
-let sesionActual = null;
-let esLider = false;
-let fechaSeleccionada = new Date();
-let reuniones = [];
-let cumpleanos = [];
-let reunionesPrivadas = [];
-let cumpleanosPrivados = [];
-let canalTiempoReal = null;
-let cargando = false;
-
+const SUPABASE_ANON_KEY =
+  "sb_publishable_y1iV_TM16wjWbdV5s9mafg_7BymHxru";
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril",
   "Mayo", "Junio", "Julio", "Agosto",
   "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
-
-const DIAS = [
-  "Lunes", "Martes", "Miércoles", "Jueves",
-  "Viernes", "Sábado", "Domingo"
-];
-
-const $ = (id) => document.getElementById(id);
-
-
-/* =========================================================
-   2. UTILIDADES
-   ========================================================= */
-
+const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+let db = null;
+let sesionActual = null;
+let rolActual = null;
+let fechaSeleccionada = new Date();
+let cargando = false;
+let reuniones = [];
+let cumpleanos = [];
+let eventos = [];
+let planesMes = [];
+let canalTiempoReal = null;
+let ultimaCarga = 0;
+/* =========================
+   2. INICIO
+   ========================= */
+document.addEventListener("DOMContentLoaded", iniciarAplicacion);
+async function iniciarAplicacion() {
+  configurarSelectores();
+  configurarEventos();
+  if (!window.supabase || !window.supabase.createClient) {
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo cargar la biblioteca de Supabase. Comprueba tu conexión.",
+      "error"
+    );
+    return;
+  }
+  try {
+    db = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY
+    );
+    const { data, error } = await db.auth.getSession();
+    if (error) throw error;
+    sesionActual = data.session;
+    await actualizarSesion();
+    await cargarDatos(true);
+    db.auth.onAuthStateChange((_evento, session) => {
+      sesionActual = session;
+      // Evita operaciones de Supabase dentro del callback de autenticación.
+      setTimeout(async () => {
+        await actualizarSesion();
+        await cargarDatos(true);
+      }, 0);
+    });
+    configurarTiempoReal();
+    cambiarEstadoConexion("Conectado");
+  } catch (error) {
+    console.error("Error al iniciar:", error);
+    cambiarEstadoConexion("Error de conexión");
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo iniciar el calendario. Comprueba la configuración de Supabase.",
+      "error"
+    );
+  }
+}
+/* =========================
+   3. ELEMENTOS Y EVENTOS
+   ========================= */
+function elemento(id) {
+  return document.getElementById(id);
+}
+function escuchar(id, evento, callback) {
+  const nodo = elemento(id);
+  if (nodo) nodo.addEventListener(evento, callback);
+}
+function configurarEventos() {
+  escuchar("mesAnterior", "click", () => moverMes(-1));
+  escuchar("mesSiguiente", "click", () => moverMes(1));
+  escuchar("selectorMes", "change", cambiarPeriodo);
+  escuchar("selectorAnio", "change", cambiarPeriodo);
+  escuchar("btnImprimir", "click", imprimirCalendario);
+  escuchar("formLogin", "submit", iniciarSesionLider);
+  escuchar("formLoginEstacas", "submit", iniciarSesionEstacas);
+  escuchar("btnLogout", "click", cerrarSesion);
+  escuchar("btnLogoutEstacas", "click", cerrarSesion);
+  escuchar("btnActualizar", "click", () => cargarDatos(true));
+  escuchar("btnActualizarEstacas", "click", () => cargarDatos(true));
+  escuchar("btnGestionarCumpleanos", "click", mostrarGestionCumpleanos);
+  escuchar("btnRegistrarCumpleEstacas", "click", alternarFormularioCumpleEstacas);
+  escuchar("btnGestionarReuniones", "click", mostrarGestionReuniones);
+  escuchar("btnGestionarEventos", "click", mostrarGestionEventos);
+  escuchar("btnExportar", "click", exportarCumpleanosCSV);
+  escuchar("btnGestionarDocumento", "click", mostrarAvisoDocumentos);
+  escuchar("formCumpleanosEstacas", "submit", registrarCumpleanos);
+  escuchar("formSolicitudEstacas", "submit", enviarSolicitudEstacas);
+}
+function configurarSelectores() {
+  const selectorMes = elemento("selectorMes");
+  const selectorAnio = elemento("selectorAnio");
+  if (selectorMes) {
+    selectorMes.value = String(fechaSeleccionada.getMonth());
+  }
+  if (selectorAnio) {
+    const actual = new Date().getFullYear();
+    selectorAnio.replaceChildren();
+    for (let anio = actual - 3; anio <= actual + 7; anio++) {
+      const opcion = document.createElement("option");
+      opcion.value = String(anio);
+      opcion.textContent = String(anio);
+      selectorAnio.appendChild(opcion);
+    }
+    selectorAnio.value = String(fechaSeleccionada.getFullYear());
+  }
+  actualizarTituloMes();
+}
+function cambiarPeriodo() {
+  const mes = Number(elemento("selectorMes")?.value);
+  const anio = Number(elemento("selectorAnio")?.value);
+  if (
+    !Number.isInteger(mes) ||
+    mes < 0 ||
+    mes > 11 ||
+    !Number.isInteger(anio)
+  ) {
+    return;
+  }
+  fechaSeleccionada = new Date(anio, mes, 1);
+  actualizarTituloMes();
+  cargarDatos(true);
+}
+function moverMes(cantidad) {
+  fechaSeleccionada = new Date(
+    fechaSeleccionada.getFullYear(),
+    fechaSeleccionada.getMonth() + cantidad,
+    1
+  );
+  if (elemento("selectorMes")) {
+    elemento("selectorMes").value = String(fechaSeleccionada.getMonth());
+  }
+  if (elemento("selectorAnio")) {
+    const selector = elemento("selectorAnio");
+    const anio = fechaSeleccionada.getFullYear();
+    if (![...selector.options].some(o => Number(o.value) === anio)) {
+      const opcion = document.createElement("option");
+      opcion.value = String(anio);
+      opcion.textContent = String(anio);
+      selector.appendChild(opcion);
+    }
+    selector.value = String(anio);
+  }
+  actualizarTituloMes();
+  cargarDatos(true);
+}
+function actualizarTituloMes() {
+  const titulo =
+    `${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`;
+  if (elemento("mesActual")) {
+    elemento("mesActual").textContent = titulo;
+  }
+}
+/* =========================
+   4. MENSAJES Y UTILIDADES
+   ========================= */
+function mostrarAviso(id, mensaje, tipo = "info") {
+  const nodo = elemento(id);
+  if (!nodo) return;
+  nodo.textContent = mensaje;
+  nodo.className = `aviso aviso-${tipo}`;
+  nodo.hidden = false;
+}
+function ocultarAviso(id) {
+  const nodo = elemento(id);
+  if (nodo) nodo.hidden = true;
+}
+function cambiarEstadoConexion(texto) {
+  const nodo = elemento("estadoConexion");
+  if (nodo) nodo.textContent = texto;
+}
 function escaparHTML(valor) {
-  return String(valor ?? "").replace(/[&<>"']/g, (caracter) => ({
+  return String(valor ?? "").replace(/[&<>"']/g, caracter => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
@@ -51,1080 +203,774 @@ function escaparHTML(valor) {
     "'": "&#39;"
   })[caracter]);
 }
-
 function fechaISO(fecha) {
   const anio = fecha.getFullYear();
   const mes = String(fecha.getMonth() + 1).padStart(2, "0");
   const dia = String(fecha.getDate()).padStart(2, "0");
-
   return `${anio}-${mes}-${dia}`;
 }
-
-function parsearFechaLocal(valor) {
-  if (!valor) return null;
-
-  const partes = String(valor).slice(0, 10).split("-");
-
-  if (partes.length !== 3) return null;
-
-  const anio = Number(partes[0]);
-  const mes = Number(partes[1]);
-  const dia = Number(partes[2]);
-
-  if (!anio || mes < 1 || mes > 12 || dia < 1 || dia > 31) {
-    return null;
-  }
-
-  const fecha = new Date(anio, mes - 1, dia);
-
-  if (
-    fecha.getFullYear() !== anio ||
-    fecha.getMonth() !== mes - 1 ||
-    fecha.getDate() !== dia
-  ) {
-    return null;
-  }
-
-  return fecha;
+function primerDiaMes() {
+  return fechaISO(new Date(
+    fechaSeleccionada.getFullYear(),
+    fechaSeleccionada.getMonth(),
+    1
+  ));
 }
-
-function fechaLarga(fecha) {
-  return fecha.toLocaleDateString("es-GT", {
-    weekday: "long",
+function primerDiaMesSiguiente() {
+  return fechaISO(new Date(
+    fechaSeleccionada.getFullYear(),
+    fechaSeleccionada.getMonth() + 1,
+    1
+  ));
+}
+function formatoFecha(fecha) {
+  if (!fecha) return "Fecha sin definir";
+  const d = new Date(`${fecha}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return fecha;
+  return d.toLocaleDateString("es-GT", {
     day: "numeric",
     month: "long",
     year: "numeric"
   });
 }
-
-function formatoCorto(fecha) {
-  return fecha.toLocaleDateString("es-GT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
+function obtenerDiaSemana(fecha) {
+  // Lunes = 0; domingo = 6.
+  return (fecha.getDay() + 6) % 7;
 }
-
-function normalizarTexto(valor) {
-  return String(valor ?? "")
-    .trim()
-    .replace(/\s+/g, " ");
+function esLider() {
+  return rolActual === "lider";
 }
-
-function mostrarAviso(id, mensaje, tipo = "info") {
-  const elemento = $(id);
-  if (!elemento) return;
-
-  elemento.textContent = mensaje;
-  elemento.hidden = !mensaje;
-  elemento.className = `aviso aviso-${tipo}`;
+function esMiembroAutorizado() {
+  return rolActual === "lider" || rolActual === "estacas";
 }
-
-function ocultarAviso(id) {
-  const elemento = $(id);
-  if (elemento) elemento.hidden = true;
-}
-
-function establecerConexion(mensaje, conectado = false) {
-  const elemento = $("estadoConexion");
-  if (!elemento) return;
-
-  elemento.replaceChildren();
-
-  const punto = document.createElement("span");
-  punto.className = "indicador-conexion";
-  punto.setAttribute("aria-hidden", "true");
-
-  const texto = document.createElement("span");
-  texto.textContent = mensaje;
-
-  elemento.append(punto, texto);
-  elemento.classList.toggle("conectado", conectado);
-}
-
-function fechaEsBisiesta(anio) {
-  return anio % 4 === 0 &&
-    (anio % 100 !== 0 || anio % 400 === 0);
-}
-
-function obtenerDiaMesCumpleanos(cumple) {
-  if (cumple.day_month) {
-    const partes = String(cumple.day_month).split("-");
-    if (partes.length === 2) {
-      return {
-        mes: Number(partes[0]),
-        dia: Number(partes[1])
-      };
-    }
-  }
-
-  if (cumple.birth_date) {
-    const fecha = parsearFechaLocal(cumple.birth_date);
-
-    if (fecha) {
-      return {
-        mes: fecha.getMonth() + 1,
-        dia: fecha.getDate()
-      };
-    }
-  }
-
-  return null;
-}
-
-function obtenerFechaCelebracion(cumple, anio) {
-  const datos = obtenerDiaMesCumpleanos(cumple);
-  if (!datos) return null;
-
-  let mes = datos.mes;
-  let dia = datos.dia;
-
-  // Cumpleaños del 29 de febrero:
-  // se celebra el 28 de febrero en años no bisiestos.
-  if (
-    mes === 2 &&
-    dia === 29 &&
-    !fechaEsBisiesta(anio)
-  ) {
-    dia = 28;
-  }
-
-  return new Date(anio, mes - 1, dia);
-}
-
-function fechaValida(valor) {
-  return parsearFechaLocal(valor) !== null;
-}
-
-function esConfiguracionValida() {
-  return (
-    SUPABASE_URL.startsWith("https://") &&
-    !SUPABASE_URL.includes("PEGA_AQUI") &&
-    SUPABASE_ANON_KEY.length > 20 &&
-    !SUPABASE_ANON_KEY.includes("PEGA_AQUI")
-  );
-}
-
-function obtenerRangoMes(anio, mes) {
-  const inicio = `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
-
-  const siguienteMes = new Date(anio, mes + 1, 1);
-  const fin = fechaISO(siguienteMes);
-
-  return { inicio, fin };
-}
-
-
-/* =========================================================
-   3. INICIALIZACIÓN
-   ========================================================= */
-
-document.addEventListener("DOMContentLoaded", iniciarAplicacion);
-
-async function iniciarAplicacion() {
-  configurarSelectoresPeriodo();
-  configurarEventos();
-  actualizarTituloMes();
-
-  if (!esConfiguracionValida()) {
-    establecerConexion("Falta configurar Supabase");
+function exigirLider() {
+  if (!sesionActual || !esLider()) {
     mostrarAviso(
       "avisoGeneral",
-      "Configura SUPABASE_URL y SUPABASE_ANON_KEY en script.js para conectar la página.",
+      "Esta función está reservada para líderes autorizados.",
       "error"
     );
-
-    renderizarCalendario();
-    renderizarCumpleanos();
-    renderizarDetalleDia();
-    return;
+    return false;
   }
-
-  if (!window.supabase?.createClient) {
-    establecerConexion("No se pudo cargar Supabase");
-    mostrarAviso(
-      "avisoGeneral",
-      "No se pudo cargar la biblioteca de Supabase. Comprueba tu conexión a internet.",
-      "error"
-    );
-    return;
-  }
-
-  db = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY
-  );
-
-  await comprobarSesionInicial();
-
-  db.auth.onAuthStateChange((_evento, sesion) => {
-    sesionActual = sesion;
-
-    // No se realizan operaciones de autenticación dentro
-    // de este callback; la actualización se ejecuta después.
-    Promise.resolve().then(() => actualizarSesion());
-  });
-
-  configurarTiempoReal();
-  await cargarDatos();
+  return true;
 }
-
-
-/* =========================================================
-   4. SELECTORES DE MES Y AÑO
-   ========================================================= */
-
-function configurarSelectoresPeriodo() {
-  const selectorMes = $("selectorMes");
-  const selectorAnio = $("selectorAnio");
-
-  if (selectorMes) {
-    selectorMes.value = String(fechaSeleccionada.getMonth());
-  }
-
-  if (selectorAnio) {
-    const anioActual = new Date().getFullYear();
-    const anios = [];
-
-    for (let anio = anioActual - 2; anio <= anioActual + 5; anio++) {
-      anios.push(anio);
-    }
-
-    selectorAnio.replaceChildren();
-
-    anios.forEach((anio) => {
-      const opcion = document.createElement("option");
-      opcion.value = String(anio);
-      opcion.textContent = String(anio);
-      selectorAnio.appendChild(opcion);
-    });
-
-    selectorAnio.value = String(fechaSeleccionada.getFullYear());
-  }
-}
-
-function sincronizarSelectoresPeriodo() {
-  if ($("selectorMes")) {
-    $("selectorMes").value = String(fechaSeleccionada.getMonth());
-  }
-
-  if ($("selectorAnio")) {
-    const anio = fechaSeleccionada.getFullYear();
-    const selector = $("selectorAnio");
-
-    if (![...selector.options].some((opcion) => opcion.value === String(anio))) {
-      const opcion = document.createElement("option");
-      opcion.value = String(anio);
-      opcion.textContent = String(anio);
-      selector.appendChild(opcion);
-    }
-
-    selector.value = String(anio);
-  }
-}
-
-function cambiarPeriodo(mes, anio) {
-  fechaSeleccionada = new Date(anio, mes, 1);
-
-  sincronizarSelectoresPeriodo();
-  actualizarTituloMes();
-
-  cargarDatos();
-}
-
-function actualizarTituloMes() {
-  const elemento = $("mesActual");
-  if (!elemento) return;
-
-  elemento.textContent =
-    `${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`;
-}
-
-
-/* =========================================================
-   5. EVENTOS DE LA PÁGINA
-   ========================================================= */
-
-function configurarEventos() {
-  $("mesAnterior")?.addEventListener("click", () => {
-    cambiarPeriodo(
-      fechaSeleccionada.getMonth() - 1,
-      fechaSeleccionada.getFullYear()
-    );
-  });
-
-  $("mesSiguiente")?.addEventListener("click", () => {
-    cambiarPeriodo(
-      fechaSeleccionada.getMonth() + 1,
-      fechaSeleccionada.getFullYear()
-    );
-  });
-
-  $("selectorMes")?.addEventListener("change", (evento) => {
-    cambiarPeriodo(
-      Number(evento.target.value),
-      fechaSeleccionada.getFullYear()
-    );
-  });
-
-  $("selectorAnio")?.addEventListener("change", (evento) => {
-    cambiarPeriodo(
-      fechaSeleccionada.getMonth(),
-      Number(evento.target.value)
-    );
-  });
-
-  $("btnImprimir")?.addEventListener("click", () => {
-    window.print();
-  });
-
-  $("formCumpleanos")?.addEventListener("submit", registrarCumpleanos);
-  $("formLogin")?.addEventListener("submit", iniciarSesion);
-  $("btnLogout")?.addEventListener("click", cerrarSesion);
-  $("btnActualizar")?.addEventListener("click", cargarDatos);
-  $("btnExportar")?.addEventListener("click", exportarCumpleanosCSV);
-  $("btnGestionarReuniones")?.addEventListener("click", mostrarGestionReuniones);
-  $("btnGestionarCumpleanos")?.addEventListener("click", mostrarGestionCumpleanos);
-  $("btnGestionarDocumento")?.addEventListener("click", mostrarAvisoDocumentos);
-
-  $("calendario")?.addEventListener("click", (evento) => {
-    const boton = evento.target.closest("[data-fecha]");
-    if (!boton) return;
-
-    const fecha = parsearFechaLocal(boton.dataset.fecha);
-    if (!fecha) return;
-
-    fechaSeleccionada = fecha;
-    sincronizarSelectoresPeriodo();
-    actualizarTituloMes();
-
-    renderizarCalendario();
-    renderizarDetalleDia();
-  });
-}
-
-
-/* =========================================================
-   6. CARGA DE DATOS PÚBLICOS
-   ========================================================= */
-
-async function cargarDatos() {
-  if (!db || cargando) return;
-
-  cargando = true;
-  establecerConexion("Sincronizando información...");
-
+/* =========================
+   5. AUTENTICACIÓN Y ROLES
+   ========================= */
+async function iniciarSesionLider(evento) {
+  evento.preventDefault();
+  const email = elemento("correoLider")?.value.trim();
+  const password = elemento("claveLider")?.value;
+  if (!email || !password) return;
   try {
-    const anio = fechaSeleccionada.getFullYear();
-    const mes = fechaSeleccionada.getMonth();
-    const { inicio, fin } = obtenerRangoMes(anio, mes);
-
-    const [resultadoReuniones, resultadoCumpleanos] = await Promise.all([
-      db
-        .from("public_meetings")
-        .select("meeting_date, cancelled, preacher, snack_responsible")
-        .gte("meeting_date", inicio)
-        .lt("meeting_date", fin)
-        .order("meeting_date", { ascending: true }),
-
-      db
-        .from("public_birthdays")
-        .select("full_name, day_month")
-    ]);
-
-    if (resultadoReuniones.error) {
-      throw resultadoReuniones.error;
-    }
-
-    if (resultadoCumpleanos.error) {
-      throw resultadoCumpleanos.error;
-    }
-
-    reuniones = resultadoReuniones.data || [];
-    cumpleanos = resultadoCumpleanos.data || [];
-
-    renderizarCalendario();
-    renderizarCumpleanos();
-    renderizarDetalleDia();
-
-    establecerConexion("Información sincronizada", true);
-    ocultarAviso("avisoGeneral");
-
-    if (esLider) {
-      await cargarDatosPrivados();
-    }
+    const { error } = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (error) throw error;
+    elemento("formLogin")?.reset();
+    await actualizarSesion();
+    await cargarDatos(true);
   } catch (error) {
-    console.error("Error al cargar los datos:", error);
-
-    establecerConexion("No se pudo sincronizar");
-
+    console.error(error);
     mostrarAviso(
-      "avisoGeneral",
-      "No se pudieron cargar los datos. Comprueba tu conexión e inténtalo de nuevo.",
+      "avisoLogin",
+      "No se pudo iniciar sesión. Comprueba tus credenciales y que tu cuenta esté autorizada como líder.",
       "error"
     );
-
+  }
+}
+async function iniciarSesionEstacas(evento) {
+  evento.preventDefault();
+  const email = elemento("correoEstacas")?.value.trim();
+  const password = elemento("claveEstacas")?.value;
+  if (!email || !password) return;
+  try {
+    const { error } = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (error) throw error;
+    elemento("formLoginEstacas")?.reset();
+    await actualizarSesion();
+    if (rolActual !== "estacas") {
+      await db.auth.signOut();
+      sesionActual = null;
+      rolActual = null;
+      await actualizarSesion();
+      mostrarAviso(
+        "avisoLoginEstacas",
+        "Esta cuenta no tiene autorización activa para el portal de Estacas.",
+        "error"
+      );
+      return;
+    }
+    await cargarDatos(true);
+  } catch (error) {
+    console.error(error);
+    mostrarAviso(
+      "avisoLoginEstacas",
+      "No se pudo iniciar sesión. Comprueba tus credenciales y la autorización de tu cuenta.",
+      "error"
+    );
+  }
+}
+async function actualizarSesion() {
+  if (!db) return;
+  const { data, error } = await db.auth.getSession();
+  if (error) throw error;
+  sesionActual = data.session;
+  rolActual = null;
+  if (sesionActual) {
+    const userId = sesionActual.user.id;
+    // Se comprueba primero si la cuenta pertenece a un líder.
+    const { data: lider, error: errorLider } = await db
+      .from("leader_profiles")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (errorLider) {
+      console.error("Error consultando el perfil de líder:", errorLider);
+    }
+    if (lider) {
+      rolActual = "lider";
+    } else {
+      const { data: estaca, error: errorEstaca } = await db
+        .from("estaca_profiles")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (errorEstaca) {
+        console.error("Error consultando el perfil de Estacas:", errorEstaca);
+      }
+      if (estaca) rolActual = "estacas";
+    }
+  }
+  actualizarInterfaz();
+}
+function actualizarInterfaz() {
+  const loginLider = elemento("accesoLideres");
+  const loginEstacas = elemento("accesoEstacas");
+  const panelLider = elemento("panelLider");
+  const panelEstacas = elemento("panelEstacas");
+  if (panelLider) panelLider.hidden = rolActual !== "lider";
+  if (panelEstacas) panelEstacas.hidden = rolActual !== "estacas";
+  if (loginLider && rolActual === "lider") loginLider.hidden = true;
+  if (loginEstacas && rolActual === "estacas") loginEstacas.hidden = true;
+  if (!sesionActual || !rolActual) {
+    if (loginLider) loginLider.hidden = true;
+    if (loginEstacas) loginEstacas.hidden = true;
+  }
+  if (sesionActual && !rolActual) {
+    mostrarAviso(
+      "avisoGeneral",
+      "La cuenta inició sesión, pero todavía no tiene un rol autorizado para este calendario.",
+      "error"
+    );
+  }
+  if (elemento("correoActivo")) {
+    elemento("correoActivo").textContent =
+      sesionActual?.user?.email || "";
+  }
+  if (elemento("correoActivoEstacas")) {
+    elemento("correoActivoEstacas").textContent =
+      sesionActual?.user?.email || "";
+  }
+  const puedeEntrar = esMiembroAutorizado();
+  if (elemento("btnExportar")) {
+    elemento("btnExportar").hidden = !esLider();
+  }
+  if (elemento("btnGestionarReuniones")) {
+    elemento("btnGestionarReuniones").hidden = !esLider();
+  }
+  if (elemento("btnGestionarEventos")) {
+    elemento("btnGestionarEventos").hidden = !esLider();
+  }
+  if (elemento("btnGestionarCumpleanos")) {
+    elemento("btnGestionarCumpleanos").hidden = !esLider();
+  }
+  if (elemento("btnGestionarDocumento")) {
+    elemento("btnGestionarDocumento").hidden = !esLider();
+  }
+  if (elemento("btnRegistrarCumpleEstacas")) {
+    elemento("btnRegistrarCumpleEstacas").hidden =
+      rolActual !== "estacas";
+  }
+  if (elemento("btnActualizarEstacas")) {
+    elemento("btnActualizarEstacas").hidden =
+      rolActual !== "estacas";
+  }
+  if (elemento("btnLogoutEstacas")) {
+    elemento("btnLogoutEstacas").hidden =
+      rolActual !== "estacas";
+  }
+  if (elemento("btnLogout")) {
+    elemento("btnLogout").hidden = !esLider();
+  }
+  if (!puedeEntrar) {
+    ocultarAviso("avisoLogin");
+    ocultarAviso("avisoLoginEstacas");
+  }
+}
+async function cerrarSesion() {
+  if (!db) return;
+  try {
+    const { error } = await db.auth.signOut();
+    if (error) throw error;
+    sesionActual = null;
+    rolActual = null;
+    reuniones = [];
+    cumpleanos = [];
+    eventos = [];
+    planesMes = [];
+    actualizarInterfaz();
     renderizarCalendario();
     renderizarCumpleanos();
-    renderizarDetalleDia();
+    renderizarDetalleDia(null);
+    if (elemento("contenidoAdministracion")) {
+      elemento("contenidoAdministracion").replaceChildren();
+    }
+    mostrarAviso(
+      "avisoGeneral",
+      "Has cerrado sesión.",
+      "info"
+    );
+  } catch (error) {
+    console.error(error);
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo cerrar la sesión. Intenta nuevamente.",
+      "error"
+    );
+  }
+}
+/* =========================
+   6. SOLICITUDES DE ESTACAS
+   ========================= */
+async function enviarSolicitudEstacas(evento) {
+  evento.preventDefault();
+  const nombre = elemento("nombreSolicitudEstacas")?.value.trim();
+  const email = elemento("correoSolicitudEstacas")?.value.trim();
+  if (!nombre || !email) return;
+  try {
+    const { error } = await db
+      .from("access_requests")
+      .insert({
+        full_name: nombre,
+        email,
+        status: "pending"
+      });
+    if (error) throw error;
+    elemento("formSolicitudEstacas")?.reset();
+    mostrarAviso(
+      "avisoSolicitudEstacas",
+      "Solicitud enviada. Un líder deberá revisarla antes de autorizar el acceso.",
+      "exito"
+    );
+  } catch (error) {
+    console.error(error);
+    mostrarAviso(
+      "avisoSolicitudEstacas",
+      "No se pudo enviar la solicitud. Comprueba la configuración de solicitudes en Supabase o contacta a un líder.",
+      "error"
+    );
+  }
+}
+/* =========================
+   7. CARGA DE INFORMACIÓN
+   ========================= */
+async function cargarDatos(forzar = false) {
+  if (!db || cargando) return;
+  // Una recarga manual no se pierde por una carga anterior.
+  cargando = true;
+  cambiarEstadoConexion("Actualizando...");
+  const fechaInicio = primerDiaMes();
+  const fechaFin = primerDiaMesSiguiente();
+  try {
+    reuniones = [];
+    eventos = [];
+    cumpleanos = [];
+    planesMes = [];
+    if (!esMiembroAutorizado()) {
+      renderizarCalendario();
+      renderizarCumpleanos();
+      renderizarDetalleDia(null);
+      return;
+    }
+    const [
+      resultadoPlanes,
+      resultadoReuniones,
+      resultadoEventos,
+      resultadoCumpleanos
+    ] = await Promise.all([
+      db
+        .from("monthly_plans")
+        .select("id, year, month, status, theme, bible_verse")
+        .eq("year", fechaSeleccionada.getFullYear())
+        .eq("month", fechaSeleccionada.getMonth() + 1),
+      db
+        .from("meetings")
+        .select(
+          "id, monthly_plan_id, meeting_date, cancelled, preacher, snack_responsible"
+        )
+        .gte("meeting_date", fechaInicio)
+        .lt("meeting_date", fechaFin),
+      db
+        .from("events")
+        .select(
+          "id, monthly_plan_id, event_date, title, preacher, snack_responsible"
+        )
+        .gte("event_date", fechaInicio)
+        .lt("event_date", fechaFin),
+      db
+        .from("birthdays")
+        .select("id, full_name, birth_date, phone, created_at")
+    ]);
+    for (const resultado of [
+      resultadoPlanes,
+      resultadoReuniones,
+      resultadoEventos,
+      resultadoCumpleanos
+    ]) {
+      if (resultado.error) throw resultado.error;
+    }
+    planesMes = resultadoPlanes.data || [];
+    const idsPlanesPublicados = new Set(
+      planesMes
+        .filter(plan => plan.status === "published")
+        .map(plan => plan.id)
+    );
+    const todosLosPlanes = new Set(planesMes.map(plan => plan.id));
+    // RLS sigue siendo la barrera de seguridad.
+    // Este filtro también evita mostrar borradores a Estacas.
+    reuniones = (resultadoReuniones.data || []).filter(reunion => {
+      if (!todosLosPlanes.has(reunion.monthly_plan_id)) return false;
+      return esLider() ||
+        idsPlanesPublicados.has(reunion.monthly_plan_id);
+    });
+    eventos = (resultadoEventos.data || []).filter(evento => {
+      if (!todosLosPlanes.has(evento.monthly_plan_id)) return false;
+      return esLider() ||
+        idsPlanesPublicados.has(evento.monthly_plan_id);
+    });
+    cumpleanos = (resultadoCumpleanos.data || []).filter(persona => {
+      return Boolean(persona.birth_date && persona.full_name);
+    });
+    renderizarCalendario();
+    renderizarCumpleanos();
+    const diaSeleccionado = elemento("calendario")
+      ?.querySelector(".dia.seleccionado");
+    if (diaSeleccionado?.dataset.fecha) {
+      renderizarDetalleDia(diaSeleccionado.dataset.fecha);
+    } else {
+      renderizarDetalleDia(null);
+    }
+    ultimaCarga = Date.now();
+    cambiarEstadoConexion("Información actualizada");
+    ocultarAviso("avisoGeneral");
+  } catch (error) {
+    console.error("Error cargando calendario:", error);
+    cambiarEstadoConexion("Error al actualizar");
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo actualizar toda la información. Revisa la conexión, las tablas y los permisos de Supabase.",
+      "error"
+    );
+    renderizarCalendario();
+    renderizarCumpleanos();
   } finally {
     cargando = false;
   }
 }
-
-
-/* =========================================================
-   7. CALENDARIO
-   Semana de lunes a domingo.
-   ========================================================= */
-
+/* =========================
+   8. CALENDARIO MENSUAL
+   ========================= */
 function renderizarCalendario() {
-  const contenedor = $("calendario");
+  const contenedor = elemento("calendario");
   if (!contenedor) return;
-
   contenedor.replaceChildren();
-
+  const encabezados = document.createElement("div");
+  encabezados.className = "dias-semana";
+  DIAS.forEach(dia => {
+    const celda = document.createElement("div");
+    celda.className = "dia-semana";
+    celda.textContent = dia;
+    encabezados.appendChild(celda);
+  });
+  contenedor.appendChild(encabezados);
+  const cuadrilla = document.createElement("div");
+  cuadrilla.className = "dias-mes";
   const anio = fechaSeleccionada.getFullYear();
   const mes = fechaSeleccionada.getMonth();
-  const primerDia = new Date(anio, mes, 1);
-  const totalDias = new Date(anio, mes + 1, 0).getDate();
-
-  // JavaScript usa domingo=0. Aquí lunes=0.
-  const desplazamiento = (primerDia.getDay() + 6) % 7;
-
-  DIAS.forEach((dia) => {
-    const encabezado = document.createElement("div");
-    encabezado.className = "dia-semana";
-    encabezado.textContent = dia.slice(0, 3);
-    encabezado.setAttribute("role", "columnheader");
-    contenedor.appendChild(encabezado);
-  });
-
-  for (let i = 0; i < desplazamiento; i++) {
+  const primerDia = obtenerDiaSemana(new Date(anio, mes, 1));
+  const cantidadDias = new Date(anio, mes + 1, 0).getDate();
+  const seleccionada = fechaISO(fechaSeleccionada);
+  for (let i = 0; i < primerDia; i++) {
     const vacio = document.createElement("div");
-    vacio.className = "dia vacio";
+    vacio.className = "dia dia-vacio";
     vacio.setAttribute("aria-hidden", "true");
-    contenedor.appendChild(vacio);
+    cuadrilla.appendChild(vacio);
   }
-
-  const hoy = fechaISO(new Date());
-
-  for (let numeroDia = 1; numeroDia <= totalDias; numeroDia++) {
-    const fecha = new Date(anio, mes, numeroDia);
-    const fechaTexto = fechaISO(fecha);
-
-    const reunionesDelDia = reuniones.filter(
-      (reunion) => String(reunion.meeting_date).slice(0, 10) === fechaTexto
+  for (let numeroDia = 1; numeroDia <= cantidadDias; numeroDia++) {
+    const fecha = fechaISO(new Date(anio, mes, numeroDia));
+    const celda = document.createElement("button");
+    celda.type = "button";
+    celda.className = "dia";
+    celda.dataset.fecha = fecha;
+    celda.setAttribute("role", "gridcell");
+    celda.setAttribute(
+      "aria-label",
+      `${numeroDia} de ${MESES[mes]} de ${anio}`
     );
-
-    const cumpleanosDelDia = cumpleanos.filter((cumple) => {
-      const fechaCumple = obtenerFechaCelebracion(cumple, anio);
-
-      return fechaCumple &&
-        fechaCumple.getMonth() === mes &&
-        fechaCumple.getDate() === numeroDia;
-    });
-
-    const boton = document.createElement("button");
-    boton.type = "button";
-    boton.className = "dia";
-    boton.dataset.fecha = fechaTexto;
-    boton.setAttribute("role", "gridcell");
-
-    if (fechaTexto === hoy) boton.classList.add("hoy");
-
-    if (fechaTexto === fechaISO(fechaSeleccionada)) {
-      boton.classList.add("seleccionado");
-      boton.setAttribute("aria-selected", "true");
-    } else {
-      boton.setAttribute("aria-selected", "false");
+    if (fecha === seleccionada) {
+      celda.classList.add("seleccionado");
     }
-
-    boton.setAttribute("aria-label", fechaLarga(fecha));
-
     const numero = document.createElement("span");
     numero.className = "numero-dia";
     numero.textContent = String(numeroDia);
-    boton.appendChild(numero);
-
-    if (reunionesDelDia.length > 0) {
-      const marca = document.createElement("span");
-      marca.className = "marca-reunion";
-      marca.setAttribute("aria-label", "Reunión");
-      boton.appendChild(marca);
+    celda.appendChild(numero);
+    const marcas = document.createElement("span");
+    marcas.className = "marcas-dia";
+    if (reuniones.some(r => r.meeting_date === fecha)) {
+      agregarMarca(marcas, "marca-reunion", "Reunión");
     }
-
-    if (cumpleanosDelDia.length > 0) {
-      const marca = document.createElement("span");
-      marca.className = "marca-cumple";
-      marca.setAttribute("aria-label", "Cumpleaños");
-      boton.appendChild(marca);
+    if (cumpleanos.some(p => p.birth_date?.slice(5) === fecha.slice(5))) {
+      agregarMarca(marcas, "marca-cumple", "Cumpleaños");
     }
-
-    contenedor.appendChild(boton);
+    if (eventos.some(e => e.event_date === fecha)) {
+      agregarMarca(marcas, "marca-evento", "Evento");
+    }
+    celda.appendChild(marcas);
+    celda.addEventListener("click", () => {
+      contenedor.querySelectorAll(".dia.seleccionado")
+        .forEach(nodo => nodo.classList.remove("seleccionado"));
+      celda.classList.add("seleccionado");
+      renderizarDetalleDia(fecha);
+    });
+    cuadrilla.appendChild(celda);
   }
+  contenedor.appendChild(cuadrilla);
 }
-
-
-/* =========================================================
-   8. DETALLES DE LA FECHA SELECCIONADA
-   ========================================================= */
-
-function renderizarDetalleDia() {
-  const titulo = $("tituloDetalle");
-  const contenedor = $("detalleDia");
-
-  if (!titulo || !contenedor) return;
-
-  const fecha = new Date(
-    fechaSeleccionada.getFullYear(),
-    fechaSeleccionada.getMonth(),
-    fechaSeleccionada.getDate()
-  );
-
-  const fechaTexto = fechaISO(fecha);
-
-  titulo.textContent = fechaLarga(fecha);
-  contenedor.replaceChildren();
-
-  const reunionesDelDia = reuniones.filter(
-    (reunion) => String(reunion.meeting_date).slice(0, 10) === fechaTexto
-  );
-
-  const cumpleanosDelDia = cumpleanos.filter((cumple) => {
-    const fechaCumple = obtenerFechaCelebracion(
-      cumple,
-      fecha.getFullYear()
-    );
-
-    return fechaCumple &&
-      fechaCumple.getMonth() === fecha.getMonth() &&
-      fechaCumple.getDate() === fecha.getDate();
-  });
-
-  if (!reunionesDelDia.length && !cumpleanosDelDia.length) {
+function agregarMarca(contenedor, clase, titulo) {
+  const marca = document.createElement("span");
+  marca.className = clase;
+  marca.title = titulo;
+  marca.setAttribute("aria-label", titulo);
+  contenedor.appendChild(marca);
+}
+/* =========================
+   9. DETALLE DEL DÍA
+   ========================= */
+function renderizarDetalleDia(fecha) {
+  const titulo = elemento("tituloDetalle");
+  const detalle = elemento("detalleDia");
+  if (!detalle) return;
+  detalle.replaceChildren();
+  if (!fecha) {
+    if (titulo) titulo.textContent = "Selecciona una fecha";
     const mensaje = document.createElement("p");
     mensaje.className = "texto-secundario";
-    mensaje.textContent = "No hay eventos registrados para esta fecha.";
+    mensaje.textContent = esMiembroAutorizado()
+      ? "Selecciona un día para consultar sus actividades."
+      : "Inicia sesión con una cuenta autorizada para consultar el calendario.";
+    detalle.appendChild(mensaje);
+    return;
+  }
+  if (titulo) titulo.textContent = formatoFecha(fecha);
+  const reunionesDia = reuniones.filter(r => r.meeting_date === fecha);
+  const eventosDia = eventos.filter(e => e.event_date === fecha);
+  const cumpleanosDia = cumpleanos.filter(
+    p => p.birth_date?.slice(5) === fecha.slice(5)
+  );
+  const secciones = [];
+  reunionesDia.forEach(reunion => {
+    secciones.push({
+      clase: "detalle-reunion",
+      titulo: reunion.cancelled ? "No habrá reunión" : "Reunión",
+      texto: reunion.cancelled
+        ? "La reunión está cancelada."
+        : `Predicador: ${reunion.preacher || "Por asignar"} · Refacción: ${reunion.snack_responsible || "Por asignar"}`
+    });
+  });
+  eventosDia.forEach(evento => {
+    secciones.push({
+      clase: "detalle-evento",
+      titulo: evento.title || "Evento",
+      texto: [
+        evento.preacher ? `Responsable: ${evento.preacher}` : "",
+        evento.snack_responsible
+          ? `Refacción: ${evento.snack_responsible}`
+          : ""
+      ].filter(Boolean).join(" · ") || "Actividad programada."
+    });
+  });
+  cumpleanosDia.forEach(persona => {
+    secciones.push({
+      clase: "detalle-cumple",
+      titulo: persona.full_name,
+      texto: "Cumpleaños"
+    });
+  });
+  if (secciones.length === 0) {
+    const mensaje = document.createElement("p");
+    mensaje.className = "texto-secundario";
+    mensaje.textContent = "No hay actividades registradas para este día.";
+    detalle.appendChild(mensaje);
+    return;
+  }
+  secciones.forEach(seccion => {
+    const tarjeta = document.createElement("article");
+    tarjeta.className = `detalle-actividad ${seccion.clase}`;
+    const h = document.createElement("h4");
+    h.textContent = seccion.titulo;
+    const p = document.createElement("p");
+    p.textContent = seccion.texto;
+    tarjeta.append(h, p);
+    detalle.appendChild(tarjeta);
+  });
+}
+/* =========================
+   10. CUMPLEAÑOS DEL MES
+   ========================= */
+function renderizarCumpleanos() {
+  const contenedor = elemento("cumpleanosMes");
+  if (!contenedor) return;
+  contenedor.replaceChildren();
+  if (!esMiembroAutorizado()) {
+    const mensaje = document.createElement("p");
+    mensaje.className = "texto-secundario";
+    mensaje.textContent = "Inicia sesión para consultar los cumpleaños.";
     contenedor.appendChild(mensaje);
     return;
   }
-
-  reunionesDelDia.forEach((reunion) => {
-    const tarjeta = document.createElement("div");
-    tarjeta.className = "detalle-item";
-
-    const tituloReunion = document.createElement("h4");
-    tituloReunion.textContent = reunion.cancelled
-      ? "No habrá reunión"
-      : "Reunión de Hope Group";
-
-    tarjeta.appendChild(tituloReunion);
-
-    if (!reunion.cancelled) {
-      agregarLineaDetalle(
-        tarjeta,
-        "Predicador",
-        reunion.preacher || "Por asignar"
-      );
-
-      agregarLineaDetalle(
-        tarjeta,
-        "Refacción",
-        formatearResponsables(reunion.snack_responsible) || "Por asignar"
-      );
-    }
-
-    contenedor.appendChild(tarjeta);
-  });
-
-  if (cumpleanosDelDia.length) {
-    const tarjeta = document.createElement("div");
-    tarjeta.className = "detalle-item";
-
-    const tituloCumples = document.createElement("h4");
-    tituloCumples.textContent = "Cumpleaños";
-    tarjeta.appendChild(tituloCumples);
-
-    const lista = document.createElement("ul");
-
-    cumpleanosDelDia.forEach((cumple) => {
-      const elemento = document.createElement("li");
-      elemento.textContent = cumple.full_name;
-      lista.appendChild(elemento);
-    });
-
-    tarjeta.appendChild(lista);
-    contenedor.appendChild(tarjeta);
-  }
-}
-
-function agregarLineaDetalle(contenedor, etiqueta, valor) {
-  const linea = document.createElement("p");
-
-  const fuerte = document.createElement("strong");
-  fuerte.textContent = `${etiqueta}: `;
-
-  const texto = document.createElement("span");
-  texto.textContent = valor;
-
-  linea.append(fuerte, texto);
-  contenedor.appendChild(linea);
-}
-
-function formatearResponsables(valor) {
-  if (Array.isArray(valor)) return valor.join(", ");
-  if (typeof valor === "string") return valor.trim();
-  return "";
-}
-
-
-/* =========================================================
-   9. CUMPLEAÑOS DEL MES
-   Solo se muestran nombre y día/mes.
-   ========================================================= */
-
-function renderizarCumpleanos() {
-  const contenedor = $("cumpleanosMes");
-  if (!contenedor) return;
-
-  contenedor.replaceChildren();
-
-  const anio = fechaSeleccionada.getFullYear();
   const mes = fechaSeleccionada.getMonth();
-
   const delMes = cumpleanos
-    .map((cumple) => ({
-      cumple,
-      fecha: obtenerFechaCelebracion(cumple, anio)
-    }))
-    .filter((item) =>
-      item.fecha && item.fecha.getMonth() === mes
-    )
-    .sort((a, b) => a.fecha.getDate() - b.fecha.getDate());
-
-  if (!delMes.length) {
+    .filter(persona => {
+      if (!persona.birth_date) return false;
+      const fecha = new Date(`${persona.birth_date}T12:00:00`);
+      return fecha.getMonth() === mes;
+    })
+    .sort((a, b) => {
+      const diaA = Number(a.birth_date.slice(8, 10));
+      const diaB = Number(b.birth_date.slice(8, 10));
+      return diaA - diaB;
+    });
+  if (delMes.length === 0) {
     const mensaje = document.createElement("p");
     mensaje.className = "texto-secundario";
     mensaje.textContent = "No hay cumpleaños registrados este mes.";
     contenedor.appendChild(mensaje);
     return;
   }
-
-  delMes.forEach(({ cumple, fecha }) => {
-    const tarjeta = document.createElement("div");
-    tarjeta.className = "cumple";
-
-    const icono = document.createElement("div");
-    icono.className = "cumple-icono";
-    icono.textContent = String(fecha.getDate()).padStart(2, "0");
-    icono.setAttribute("aria-hidden", "true");
-
-    const informacion = document.createElement("div");
-
-    const nombre = document.createElement("p");
+  delMes.forEach(persona => {
+    const fila = document.createElement("article");
+    fila.className = "cumple";
+    const fecha = document.createElement("span");
+    fecha.className = "cumple-fecha";
+    fecha.textContent = persona.birth_date.slice(8, 10);
+    const nombre = document.createElement("span");
     nombre.className = "cumple-nombre";
-    nombre.textContent = cumple.full_name;
-
-    const diaMes = document.createElement("p");
-    diaMes.className = "cumple-fecha";
-    diaMes.textContent = fecha.toLocaleDateString("es-GT", {
-      day: "numeric",
-      month: "long"
-    });
-
-    informacion.append(nombre, diaMes);
-    tarjeta.append(icono, informacion);
-    contenedor.appendChild(tarjeta);
-  });
-}
-
-
-/* =========================================================
-   10. REGISTRO PÚBLICO DE CUMPLEAÑOS
-   La privacidad también debe imponerse en Supabase.
-   ========================================================= */
-
-async function registrarCumpleanos(evento) {
-  evento.preventDefault();
-
-  if (!db) {
-    mostrarAviso("avisoCumpleanos", "Supabase no está configurado.", "error");
-    return;
-  }
-
-  const nombre = normalizarTexto($("nombreCumple")?.value);
-  const nacimiento = $("fechaCumple")?.value;
-  const telefono = normalizarTexto($("telefonoCumple")?.value);
-
-  if (nombre.length < 2 || nombre.length > 120) {
-    mostrarAviso(
-      "avisoCumpleanos",
-      "Escribe un nombre completo válido.",
-      "error"
-    );
-    return;
-  }
-
-  if (!fechaValida(nacimiento)) {
-    mostrarAviso(
-      "avisoCumpleanos",
-      "Selecciona una fecha de nacimiento válida.",
-      "error"
-    );
-    return;
-  }
-
-  if (telefono.length > 25) {
-    mostrarAviso(
-      "avisoCumpleanos",
-      "El teléfono no debe superar 25 caracteres.",
-      "error"
-    );
-    return;
-  }
-
-  const fechaNac = parsearFechaLocal(nacimiento);
-  const hoy = parsearFechaLocal(fechaISO(new Date()));
-
-  if (fechaNac > hoy) {
-    const continuar = window.confirm(
-      "La fecha de nacimiento está en el futuro. ¿Deseas registrarla de todos modos?"
-    );
-
-    if (!continuar) return;
-  }
-
-  const boton = $("btnGuardarCumple");
-  if (boton) boton.disabled = true;
-
-  mostrarAviso(
-    "avisoCumpleanos",
-    "Registrando cumpleaños...",
-    "info"
-  );
-
-  try {
-    const { error } = await db.from("birthdays").insert({
-      full_name: nombre,
-      birth_date: nacimiento,
-      phone: telefono || null
-    });
-
-    if (error) {
-      if (
-        error.code === "23505" ||
-        /duplicate|unique/i.test(error.message || "")
-      ) {
-        throw new Error(
-          "Ya existe un registro con ese nombre y fecha de nacimiento."
-        );
-      }
-
-      throw error;
-    }
-
-    $("formCumpleanos").reset();
-
-    mostrarAviso(
-      "avisoCumpleanos",
-      "¡Cumpleaños registrado correctamente!",
-      "exito"
-    );
-
-    await cargarDatos();
-  } catch (error) {
-    console.error("Error al registrar cumpleaños:", error);
-
-    mostrarAviso(
-      "avisoCumpleanos",
-      error.message?.includes("Ya existe")
-        ? error.message
-        : "No se pudo registrar. Comprueba la conexión o contacta a un líder.",
-      "error"
-    );
-  } finally {
-    if (boton) boton.disabled = false;
-  }
-}
-
-
-/* =========================================================
-   11. AUTENTICACIÓN DE LÍDERES
-   ========================================================= */
-
-async function comprobarSesionInicial() {
-  const { data, error } = await db.auth.getSession();
-
-  if (error) {
-    console.error("Error al comprobar la sesión:", error);
-    return;
-  }
-
-  sesionActual = data.session;
-  await actualizarSesion();
-}
-
-async function iniciarSesion(evento) {
-  evento.preventDefault();
-
-  if (!db) return;
-
-  const correo = normalizarTexto($("correoLider")?.value);
-  const clave = $("claveLider")?.value;
-
-  const boton = $("btnLogin");
-  if (boton) boton.disabled = true;
-
-  mostrarAviso("avisoLogin", "Verificando acceso...", "info");
-
-  try {
-    const { data, error } = await db.auth.signInWithPassword({
-      email: correo,
-      password: clave
-    });
-
-    if (error) throw error;
-
-    sesionActual = data.session;
-    await actualizarSesion();
-
-    if (esLider) {
-      $("formLogin")?.reset();
-      mostrarAviso("avisoLogin", "", "info");
-    } else {
-      mostrarAviso(
-        "avisoLogin",
-        "Esta cuenta no tiene autorización de líder.",
-        "error"
-      );
-
-      await db.auth.signOut();
-    }
-  } catch (error) {
-    console.error("Error al iniciar sesión:", error);
-
-    mostrarAviso(
-      "avisoLogin",
-      "No se pudo iniciar sesión. Comprueba tus datos o contacta al administrador.",
-      "error"
-    );
-  } finally {
-    if (boton) boton.disabled = false;
-  }
-}
-
-async function actualizarSesion() {
-  if (!db) return;
-
-  const { data } = await db.auth.getSession();
-  sesionActual = data.session;
-
-  esLider = false;
-
-  if (sesionActual?.user) {
-    const { data: perfil, error } = await db
-      .from("leader_profiles")
-      .select("user_id")
-      .eq("user_id", sesionActual.user.id)
-      .maybeSingle();
-
-    if (!error && perfil) {
-      esLider = true;
-    } else {
-      // Si no existe perfil de líder, la sesión no obtiene
-      // permisos administrativos en la interfaz.
-      if (error) console.error("Error al verificar el perfil:", error);
-    }
-  }
-
-  actualizarInterfazLider();
-
-  if (esLider) {
-    await cargarDatosPrivados();
-  } else {
-    cumpleanosPrivados = [];
-    reunionesPrivadas = [];
-  }
-}
-
-function actualizarInterfazLider() {
-  const formulario = $("formLogin");
-  const panel = $("panelLider");
-  const correo = $("correoActivo");
-
-  if (formulario) formulario.hidden = esLider;
-  if (panel) panel.hidden = !esLider;
-
-  if (correo) {
-    correo.textContent = esLider
-      ? sesionActual?.user?.email || "Líder autorizado"
-      : "";
-  }
-}
-
-async function cerrarSesion() {
-  if (!db) return;
-
-  const { error } = await db.auth.signOut();
-
-  if (error) {
-    mostrarAviso(
-      "avisoLogin",
-      "No se pudo cerrar la sesión. Inténtalo de nuevo.",
-      "error"
-    );
-    return;
-  }
-
-  sesionActual = null;
-  esLider = false;
-  cumpleanosPrivados = [];
-  reunionesPrivadas = [];
-
-  actualizarInterfazLider();
-  mostrarAviso("avisoLogin", "Sesión cerrada correctamente.", "info");
-
-  await cargarDatos();
-}
-
-
-/* =========================================================
-   12. DATOS PRIVADOS PARA LÍDERES
-   ========================================================= */
-
-async function cargarDatosPrivados() {
-  if (!db || !esLider) return;
-
-  try {
-    const anio = fechaSeleccionada.getFullYear();
-    const mes = fechaSeleccionada.getMonth();
-    const { inicio, fin } = obtenerRangoMes(anio, mes);
-
-    const [resultadoCumples, resultadoReuniones] = await Promise.all([
-      db
-        .from("birthdays")
-        .select("id, full_name, birth_date, phone")
-        .order("full_name", { ascending: true }),
-
-      db
-        .from("meetings")
-        .select("id, monthly_plan_id, meeting_date, cancelled, preacher, snack_responsible")
-        .gte("meeting_date", inicio)
-        .lt("meeting_date", fin)
-        .order("meeting_date", { ascending: true })
-    ]);
-
-    if (resultadoCumples.error) throw resultadoCumples.error;
-    if (resultadoReuniones.error) throw resultadoReuniones.error;
-
-    cumpleanosPrivados = resultadoCumples.data || [];
-    reunionesPrivadas = resultadoReuniones.data || [];
-  } catch (error) {
-    console.error("Error al cargar datos privados:", error);
-  }
-}
-
-
-/* =========================================================
-   13. GESTIONAR CUMPLEAÑOS
-   ========================================================= */
-
-async function mostrarGestionCumpleanos() {
-  if (!esLider) return;
-
-  await cargarDatosPrivados();
-
-  const contenedor = $("contenidoAdministracion");
-  if (!contenedor) return;
-
-  contenedor.replaceChildren();
-
-  const titulo = document.createElement("h3");
-  titulo.textContent = "Administrar cumpleaños";
-  contenedor.appendChild(titulo);
-
-  if (!cumpleanosPrivados.length) {
-    const mensaje = document.createElement("p");
-    mensaje.textContent = "No hay registros.";
-    contenedor.appendChild(mensaje);
-    return;
-  }
-
-  cumpleanosPrivados.forEach((cumple) => {
-    const fila = document.createElement("div");
-    fila.className = "fila-administracion";
-
-    const info = document.createElement("div");
-
-    const nombre = document.createElement("strong");
-    nombre.textContent = cumple.full_name;
-
-    const fecha = document.createElement("p");
-    const fechaNac = parsearFechaLocal(cumple.birth_date);
-    fecha.textContent = fechaNac ? formatoCorto(fechaNac) : "Sin fecha";
-
-    const telefono = document.createElement("p");
-    telefono.textContent = cumple.phone || "Sin teléfono";
-
-    info.append(nombre, fecha, telefono);
-
-    const boton = document.createElement("button");
-    boton.type = "button";
-    boton.className = "boton boton-peligro boton-pequeno";
-    boton.textContent = "Eliminar";
-
-    boton.addEventListener("click", async () => {
-      const confirmar = window.confirm(
-        `¿Eliminar el registro de ${cumple.full_name}? Esta acción no se puede deshacer.`
-      );
-
-      if (!confirmar) return;
-
-      const { error } = await db
-        .from("birthdays")
-        .delete()
-        .eq("id", cumple.id);
-
-      if (error) {
-        alert("No se pudo eliminar el registro. Comprueba los permisos.");
-        console.error(error);
-        return;
-      }
-
-      await cargarDatos();
-      await mostrarGestionCumpleanos();
-    });
-
-    fila.append(info, boton);
+    nombre.textContent = persona.full_name;
+    fila.append(fecha, nombre);
     contenedor.appendChild(fila);
   });
 }
-
-/* =========================================================
-   14. GESTIONAR REUNIONES Y ASIGNACIONES
-   ========================================================= */
-
-// Obtiene el plan del mes seleccionado o crea uno como borrador.
-async function obtenerPlanMes(crearSiNoExiste = false) {
-  if (!db || !esLider) {
-    throw new Error("Debes iniciar sesión como líder.");
+/* =========================
+   11. REGISTRAR CUMPLEAÑOS
+   ========================= */
+function alternarFormularioCumpleEstacas() {
+  if (rolActual !== "estacas") return;
+  const formulario = elemento("formularioCumpleEstacas");
+  if (formulario) formulario.hidden = !formulario.hidden;
+}
+async function registrarCumpleanos(evento) {
+  evento.preventDefault();
+  if (!sesionActual || !["lider", "estacas"].includes(rolActual)) {
+    mostrarAviso(
+      "avisoCumpleEstacas",
+      "Necesitas iniciar sesión con una cuenta autorizada.",
+      "error"
+    );
+    return;
   }
-
+  const nombre = elemento("nombreCumpleEstacas")?.value.trim();
+  const fecha = elemento("fechaCumpleEstacas")?.value;
+  const telefono = elemento("telefonoCumpleEstacas")?.value.trim() || null;
+  if (!nombre || !fecha) return;
+  try {
+    const { error } = await db.from("birthdays").insert({
+      full_name: nombre,
+      birth_date: fecha,
+      phone: telefono,
+      created_by: sesionActual.user.id
+    });
+    if (error) throw error;
+    elemento("formCumpleanosEstacas")?.reset();
+    mostrarAviso(
+      "avisoCumpleEstacas",
+      "Cumpleaños registrado correctamente.",
+      "exito"
+    );
+    await cargarDatos(true);
+  } catch (error) {
+    console.error(error);
+    mostrarAviso(
+      "avisoCumpleEstacas",
+      "No se pudo registrar el cumpleaños. Puede que ya exista o que falten permisos en Supabase.",
+      "error"
+    );
+  }
+}
+/* =========================
+   12. ADMINISTRAR CUMPLEAÑOS
+   ========================= */
+async function mostrarGestionCumpleanos() {
+  if (!exigirLider()) return;
+  const contenedor = elemento("contenidoAdministracion");
+  if (!contenedor) return;
+  contenedor.replaceChildren();
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Administrar cumpleaños";
+  contenedor.appendChild(titulo);
+  const form = document.createElement("form");
+  form.className = "formulario";
+  form.innerHTML = `
+    <div class="campo">
+      <label for="nuevoCumpleNombre">Nombre completo</label>
+      <input id="nuevoCumpleNombre" maxlength="120" required>
+    </div>
+    <div class="campo">
+      <label for="nuevoCumpleFecha">Fecha de nacimiento</label>
+      <input id="nuevoCumpleFecha" type="date" required>
+    </div>
+    <div class="campo">
+      <label for="nuevoCumpleTelefono">Teléfono (opcional)</label>
+      <input id="nuevoCumpleTelefono" type="tel" maxlength="25">
+    </div>
+    <button class="boton boton-principal" type="submit">
+      Agregar cumpleaños
+    </button>
+  `;
+  form.addEventListener("submit", async evento => {
+    evento.preventDefault();
+    try {
+      const { error } = await db.from("birthdays").insert({
+        full_name: elemento("nuevoCumpleNombre").value.trim(),
+        birth_date: elemento("nuevoCumpleFecha").value,
+        phone: elemento("nuevoCumpleTelefono").value.trim() || null,
+        created_by: sesionActual.user.id
+      });
+      if (error) throw error;
+      await cargarDatos(true);
+      await mostrarGestionCumpleanos();
+      mostrarAviso(
+        "avisoGeneral",
+        "Cumpleaños agregado correctamente.",
+        "exito"
+      );
+    } catch (error) {
+      console.error(error);
+      mostrarAviso(
+        "avisoGeneral",
+        "No se pudo agregar el cumpleaños.",
+        "error"
+      );
+    }
+  });
+  contenedor.appendChild(form);
+  cumpleanos.forEach(persona => {
+    const fila = document.createElement("div");
+    fila.className = "fila-administracion";
+    const info = document.createElement("div");
+    info.innerHTML = `
+      <strong>${escaparHTML(persona.full_name)}</strong>
+      <p>${escaparHTML(formatoFecha(persona.birth_date))}</p>
+    `;
+    const acciones = document.createElement("div");
+    acciones.className = "acciones-lider";
+    const editar = document.createElement("button");
+    editar.type = "button";
+    editar.className = "boton boton-secundario";
+    editar.textContent = "Editar";
+    editar.addEventListener("click", () => editarCumpleanos(persona));
+    const borrar = document.createElement("button");
+    borrar.type = "button";
+    borrar.className = "boton boton-borde";
+    borrar.textContent = "Eliminar";
+    borrar.addEventListener("click", () => eliminarCumpleanos(persona));
+    acciones.append(editar, borrar);
+    fila.append(info, acciones);
+    contenedor.appendChild(fila);
+  });
+}
+async function editarCumpleanos(persona) {
+  if (!exigirLider()) return;
+  const nombre = prompt("Nombre completo:", persona.full_name);
+  if (nombre === null) return;
+  const fecha = prompt(
+    "Fecha de nacimiento (AAAA-MM-DD):",
+    persona.birth_date
+  );
+  if (fecha === null) return;
+  const telefono = prompt("Teléfono (opcional):", persona.phone || "");
+  if (telefono === null) return;
+  if (!nombre.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    mostrarAviso("avisoGeneral", "Revisa el nombre y la fecha.", "error");
+    return;
+  }
+  try {
+    const { error } = await db
+      .from("birthdays")
+      .update({
+        full_name: nombre.trim(),
+        birth_date: fecha,
+        phone: telefono.trim() || null,
+        updated_by: sesionActual.user.id
+      })
+      .eq("id", persona.id);
+    if (error) throw error;
+    await cargarDatos(true);
+    await mostrarGestionCumpleanos();
+    mostrarAviso("avisoGeneral", "Cumpleaños actualizado.", "exito");
+  } catch (error) {
+    console.error(error);
+    mostrarAviso("avisoGeneral", "No se pudo editar el cumpleaños.", "error");
+  }
+}
+async function eliminarCumpleanos(persona) {
+  if (!exigirLider()) return;
+  if (!confirm(`¿Eliminar el cumpleaños de ${persona.full_name}?`)) return;
+  try {
+    const { error } = await db
+      .from("birthdays")
+      .delete()
+      .eq("id", persona.id);
+    if (error) throw error;
+    await cargarDatos(true);
+    await mostrarGestionCumpleanos();
+    mostrarAviso("avisoGeneral", "Cumpleaños eliminado.", "exito");
+  } catch (error) {
+    console.error(error);
+    mostrarAviso("avisoGeneral", "No se pudo eliminar el cumpleaños.", "error");
+  }
+}
+/* =========================
+   13. PLAN MENSUAL
+   ========================= */
+async function obtenerPlanMes(crearSiNoExiste = false) {
+  if (!exigirLider()) return null;
   const anio = fechaSeleccionada.getFullYear();
   const mes = fechaSeleccionada.getMonth() + 1;
-
   const { data, error } = await db
     .from("monthly_plans")
-    .select("id, year, month, status")
+    .select("*")
     .eq("year", anio)
     .eq("month", mes)
     .maybeSingle();
-
   if (error) throw error;
-  if (data || !crearSiNoExiste) return data;
-
-  const { data: nuevoPlan, error: errorCrear } = await db
+  if (data) return data;
+  if (!crearSiNoExiste) return null;
+  const { data: nuevo, error: errorNuevo } = await db
     .from("monthly_plans")
     .insert({
       year: anio,
@@ -1132,478 +978,624 @@ async function obtenerPlanMes(crearSiNoExiste = false) {
       status: "draft",
       created_by: sesionActual.user.id
     })
-    .select("id, year, month, status")
+    .select()
     .single();
-
-  if (errorCrear) {
-    // Puede que otro intento ya haya creado el plan.
-    const { data: existente, error: errorBuscar } = await db
-      .from("monthly_plans")
-      .select("id, year, month, status")
-      .eq("year", anio)
-      .eq("month", mes)
-      .maybeSingle();
-
-    if (errorBuscar || !existente) throw errorCrear;
-    return existente;
-  }
-
-  return nuevoPlan;
+  if (errorNuevo) throw errorNuevo;
+  return nuevo;
 }
-
-
-// Panel principal de reuniones.
-async function mostrarGestionReuniones() {
-  if (!esLider) return;
-
-  const contenedor = $("contenidoAdministracion");
-  if (!contenedor) return;
-
-  contenedor.replaceChildren();
-
-  const titulo = document.createElement("h3");
-  titulo.textContent = "Gestionar reuniones";
-  contenedor.appendChild(titulo);
-
-  const descripcion = document.createElement("p");
-  descripcion.textContent =
-    "Selecciona la fecha, asigna la predicación y la refacción, y guarda la reunión.";
-  contenedor.appendChild(descripcion);
-
+async function publicarPlanMes() {
+  if (!exigirLider()) return;
   try {
-    const plan = await obtenerPlanMes(false);
-    await cargarDatosPrivados();
-
-    const estado = document.createElement("p");
-    estado.textContent = plan
-      ? `Estado del plan: ${
-          plan.status === "published" ? "Publicado" :
-          plan.status === "archived" ? "Archivado" : "Borrador"
-        }`
-      : "Todavía no existe un plan para este mes.";
-    contenedor.appendChild(estado);
-
-    // Formulario para crear reuniones.
-    const formulario = document.createElement("form");
-    formulario.id = "formNuevaReunion";
-    formulario.className = "formulario";
-
-    const fechaInicial = fechaISO(new Date(
-      fechaSeleccionada.getFullYear(),
-      fechaSeleccionada.getMonth(),
-      Math.max(1, fechaSeleccionada.getDate())
-    ));
-
-    formulario.innerHTML = `
-      <h4>Agregar una reunión</h4>
-
-      <div class="campo">
-        <label for="nuevaFechaReunion">Fecha de la reunión</label>
-        <input
-          type="date"
-          id="nuevaFechaReunion"
-          value="${fechaInicial}"
-          required
-        >
-      </div>
-
-      <div class="campo">
-        <label for="nuevoPredicador">Quién dará la prédica</label>
-        <input
-          type="text"
-          id="nuevoPredicador"
-          maxlength="120"
-          placeholder="Nombre del predicador"
-        >
-      </div>
-
-      <div class="campo">
-        <label for="nuevaRefaccion">Responsable(s) de la refacción</label>
-        <input
-          type="text"
-          id="nuevaRefaccion"
-          maxlength="250"
-          placeholder="Uno o varios nombres, separados por comas"
-        >
-      </div>
-
-      <div class="campo">
-        <label>
-          <input type="checkbox" id="nuevaReunionCancelada">
-          No habrá reunión ese día
-        </label>
-      </div>
-
-      <button
-        type="submit"
-        class="boton boton-principal ancho-completo"
-        id="btnCrearReunion"
+    const plan = await obtenerPlanMes(true);
+    if (!plan) return;
+    const { error } = await db
+      .from("monthly_plans")
+      .update({
+        status: "published",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", plan.id);
+    if (error) throw error;
+    await cargarDatos(true);
+    mostrarAviso(
+      "avisoGeneral",
+      "El calendario del mes quedó publicado.",
+      "exito"
+    );
+    await mostrarGestionReuniones();
+  } catch (error) {
+    console.error(error);
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo publicar el calendario. Comprueba los permisos.",
+      "error"
+    );
+  }
+}
+/* =========================
+   14. ADMINISTRAR REUNIONES
+   ========================= */
+async function mostrarGestionReuniones() {
+  if (!exigirLider()) return;
+  const contenedor = elemento("contenidoAdministracion");
+  if (!contenedor) return;
+  contenedor.replaceChildren();
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Administrar reuniones";
+  contenedor.appendChild(titulo);
+  const form = document.createElement("form");
+  form.className = "formulario";
+  form.innerHTML = `
+    <div class="campo">
+      <label for="nuevaReunionFecha">Fecha de reunión</label>
+      <input
+        id="nuevaReunionFecha"
+        type="date"
+        min="${primerDiaMes()}"
+        max="${fechaISO(new Date(
+          fechaSeleccionada.getFullYear(),
+          fechaSeleccionada.getMonth() + 1,
+          0
+        ))}"
+        required
       >
-        Guardar reunión
-      </button>
-    `;
-
-    formulario.addEventListener("submit", guardarNuevaReunion);
-    contenedor.appendChild(formulario);
-
-    // Publicar el plan hace visibles sus reuniones en el calendario.
-    const botonPublicar = document.createElement("button");
-    botonPublicar.type = "button";
-    botonPublicar.className = "boton boton-secundario ancho-completo";
-    botonPublicar.textContent = plan?.status === "published"
-      ? "El plan de este mes ya está publicado"
-      : "Publicar calendario de este mes";
-    botonPublicar.disabled = plan?.status === "published";
-
-    botonPublicar.addEventListener("click", publicarPlanMes);
-    contenedor.appendChild(botonPublicar);
-
-    const subtitulo = document.createElement("h4");
-    subtitulo.textContent = "Reuniones registradas";
-    contenedor.appendChild(subtitulo);
-
-    if (!reunionesPrivadas.length) {
-      const mensaje = document.createElement("p");
-      mensaje.textContent =
-        "Todavía no hay reuniones. Usa el formulario de arriba para agregar la primera.";
-      contenedor.appendChild(mensaje);
-      return;
-    }
-
-    reunionesPrivadas.forEach((reunion) => {
+    </div>
+    <div class="campo">
+      <label for="nuevoPredicador">Predicador (opcional)</label>
+      <input id="nuevoPredicador" maxlength="120">
+    </div>
+    <div class="campo">
+      <label for="nuevaRefaccion">Responsable de refacción (opcional)</label>
+      <input id="nuevaRefaccion" maxlength="120">
+    </div>
+    <div class="campo campo-checkbox">
+      <label>
+        <input id="nuevaReunionCancelada" type="checkbox">
+        No habrá reunión
+      </label>
+    </div>
+    <button class="boton boton-principal" type="submit">
+      Agregar reunión
+    </button>
+  `;
+  form.addEventListener("submit", guardarNuevaReunion);
+  contenedor.appendChild(form);
+  const botonPublicar = document.createElement("button");
+  botonPublicar.type = "button";
+  botonPublicar.className = "boton boton-principal ancho-completo";
+  botonPublicar.textContent = "Publicar calendario del mes";
+  botonPublicar.addEventListener("click", publicarPlanMes);
+  contenedor.appendChild(botonPublicar);
+  const lista = document.createElement("div");
+  lista.className = "lista-administracion";
+  reuniones
+    .slice()
+    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date))
+    .forEach(reunion => {
       const fila = document.createElement("div");
       fila.className = "fila-administracion";
-
       const info = document.createElement("div");
-      const fecha = parsearFechaLocal(reunion.meeting_date);
-
-      const nombre = document.createElement("strong");
-      nombre.textContent = fecha
-        ? fechaLarga(fecha)
-        : String(reunion.meeting_date);
-
-      const predica = document.createElement("p");
-      predica.textContent = reunion.cancelled
-        ? "Reunión cancelada"
-        : `Prédica: ${reunion.preacher || "Por asignar"}`;
-
-      const refaccion = document.createElement("p");
-      refaccion.textContent = reunion.cancelled
-        ? ""
-        : `Refacción: ${
-            formatearResponsables(reunion.snack_responsible) || "Por asignar"
-          }`;
-
-      info.append(nombre, predica, refaccion);
-
-      const botonEditar = document.createElement("button");
-      botonEditar.type = "button";
-      botonEditar.className = "boton boton-secundario boton-pequeno";
-      botonEditar.textContent = "Editar";
-      botonEditar.addEventListener("click", () => editarReunion(reunion));
-
-      fila.append(info, botonEditar);
-      contenedor.appendChild(fila);
+      info.innerHTML = `
+        <strong>${escaparHTML(formatoFecha(reunion.meeting_date))}</strong>
+        <p>${reunion.cancelled
+          ? "No habrá reunión"
+          : `Predicador: ${escaparHTML(reunion.preacher || "Por asignar")}`}</p>
+        <p>Refacción: ${escaparHTML(reunion.snack_responsible || "Por asignar")}</p>
+      `;
+      const acciones = document.createElement("div");
+      acciones.className = "acciones-lider";
+      const editar = document.createElement("button");
+      editar.type = "button";
+      editar.className = "boton boton-secundario";
+      editar.textContent = "Editar";
+      editar.addEventListener("click", () => editarReunion(reunion));
+      const borrar = document.createElement("button");
+      borrar.type = "button";
+      borrar.className = "boton boton-borde";
+      borrar.textContent = "Eliminar";
+      borrar.addEventListener("click", () => eliminarReunion(reunion));
+      acciones.append(editar, borrar);
+      fila.append(info, acciones);
+      lista.appendChild(fila);
     });
-  } catch (error) {
-    console.error("Error al gestionar reuniones:", error);
-
-    const mensaje = document.createElement("p");
-    mensaje.className = "aviso aviso-error";
-    mensaje.textContent =
-      "No se pudo abrir la administración. Comprueba los permisos de Supabase y la conexión.";
-    contenedor.appendChild(mensaje);
-  }
+  contenedor.appendChild(lista);
 }
-
-
-// Guarda una reunión nueva en Supabase.
 async function guardarNuevaReunion(evento) {
   evento.preventDefault();
-
-  if (!esLider || !db) return;
-
-  const fecha = $("nuevaFechaReunion")?.value;
-  const predicador = normalizarTexto($("nuevoPredicador")?.value);
-  const refaccion = normalizarTexto($("nuevaRefaccion")?.value);
-  const cancelada = $("nuevaReunionCancelada")?.checked || false;
-  const boton = $("btnCrearReunion");
-
-  if (!fechaValida(fecha)) {
-    alert("Selecciona una fecha válida.");
-    return;
-  }
-
-  const fechaReunion = parsearFechaLocal(fecha);
-
-  // Evita guardar una reunión dentro del plan de otro mes.
-  if (
-    fechaReunion.getFullYear() !== fechaSeleccionada.getFullYear() ||
-    fechaReunion.getMonth() !== fechaSeleccionada.getMonth()
-  ) {
-    alert("La fecha debe pertenecer al mes seleccionado en el calendario.");
-    return;
-  }
-
-  if (predicador.length > 120 || refaccion.length > 250) {
-    alert("Revisa la longitud de los nombres ingresados.");
-    return;
-  }
-
-  if (boton) boton.disabled = true;
-
+  if (!exigirLider()) return;
   try {
     const plan = await obtenerPlanMes(true);
-
-    if (plan.status === "archived") {
-      throw new Error(
-        "Este plan está archivado. Selecciona otro mes o revisa su estado."
+    if (!plan) return;
+    const fecha = elemento("nuevaReunionFecha").value;
+    if (!fecha.startsWith(
+      `${fechaSeleccionada.getFullYear()}-${String(
+        fechaSeleccionada.getMonth() + 1
+      ).padStart(2, "0")}`
+    )) {
+      mostrarAviso(
+        "avisoGeneral",
+        "La reunión debe pertenecer al mes seleccionado.",
+        "error"
       );
-    }
-
-    const { error } = await db
-      .from("meetings")
-      .insert({
-        monthly_plan_id: plan.id,
-        meeting_date: fecha,
-        cancelled: cancelada,
-        preacher: cancelada ? null : (predicador || null),
-        snack_responsible: cancelada ? null : (refaccion || null)
-      });
-
-    if (error) {
-      if (error.code === "23505") {
-        throw new Error("Ya existe una reunión registrada para esa fecha.");
-      }
-      throw error;
-    }
-
-    alert(
-      plan.status === "published"
-        ? "Reunión guardada. Se actualizará el calendario público."
-        : "Reunión guardada como borrador. Publica el plan para mostrarla al grupo."
-    );
-
-    await cargarDatos();
-    await mostrarGestionReuniones();
-  } catch (error) {
-    console.error("Error al crear reunión:", error);
-    alert(error.message || "No se pudo guardar la reunión. Revisa los permisos de Supabase.");
-  } finally {
-    if (boton) boton.disabled = false;
-  }
-}
-
-
-// Publica el plan mensual para que aparezca en el calendario público.
-async function publicarPlanMes() {
-  if (!esLider || !db) return;
-
-  const confirmar = window.confirm(
-    `¿Publicar el calendario de ${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}?`
-  );
-
-  if (!confirmar) return;
-
-  try {
-    const plan = await obtenerPlanMes(true);
-
-    if (plan.status === "archived") {
-      alert("No se puede publicar un plan archivado.");
       return;
     }
-
-    const { error } = await db
-      .from("monthly_plans")
-      .update({ status: "published" })
-      .eq("id", plan.id);
-
+    const { error } = await db.from("meetings").insert({
+      monthly_plan_id: plan.id,
+      meeting_date: fecha,
+      cancelled: elemento("nuevaReunionCancelada").checked,
+      preacher: elemento("nuevoPredicador").value.trim() || null,
+      snack_responsible: elemento("nuevaRefaccion").value.trim() || null
+    });
     if (error) throw error;
-
-    alert("¡Calendario publicado!");
-
-    await cargarDatos();
+    await cargarDatos(true);
     await mostrarGestionReuniones();
+    mostrarAviso("avisoGeneral", "Reunión guardada.", "exito");
   } catch (error) {
-    console.error("Error al publicar el plan:", error);
-    alert("No se pudo publicar. Verifica los permisos de monthly_plans en Supabase.");
+    console.error(error);
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo guardar la reunión. Comprueba que no exista otra reunión en esa fecha.",
+      "error"
+    );
   }
 }
-
-
-// Edita una reunión existente.
 async function editarReunion(reunion) {
-  if (!esLider || !db) return;
-
-  const fechaActual = String(reunion.meeting_date).slice(0, 10);
-
-  const nuevaFecha = window.prompt(
-    "Fecha de la reunión (AAAA-MM-DD):",
-    fechaActual
+  if (!exigirLider()) return;
+  const fecha = prompt(
+    "Fecha (AAAA-MM-DD):",
+    reunion.meeting_date
   );
-  if (nuevaFecha === null) return;
-
-  if (!fechaValida(nuevaFecha)) {
-    alert("La fecha no es válida. Usa el formato AAAA-MM-DD.");
-    return;
-  }
-
-  const fechaValidada = parsearFechaLocal(nuevaFecha);
-
-  if (
-    fechaValidada.getFullYear() !== fechaSeleccionada.getFullYear() ||
-    fechaValidada.getMonth() !== fechaSeleccionada.getMonth()
-  ) {
-    alert("Para editarla, selecciona primero el mes al que pertenece la reunión.");
-    return;
-  }
-
-  const nuevoPredicador = window.prompt(
-    "Nombre del predicador:",
+  if (fecha === null) return;
+  const predicador = prompt(
+    "Predicador (vacío = Por asignar):",
     reunion.preacher || ""
   );
-  if (nuevoPredicador === null) return;
-
-  const nuevaRefaccion = window.prompt(
-    "Responsable(s) de refacción, separados por comas:",
-    formatearResponsables(reunion.snack_responsible)
+  if (predicador === null) return;
+  const refaccion = prompt(
+    "Responsable de refacción (vacío = Por asignar):",
+    reunion.snack_responsible || ""
   );
-  if (nuevaRefaccion === null) return;
-
-  const respuesta = window.prompt(
-    "¿Cancelar la reunión? Escribe sí o no:",
-    reunion.cancelled ? "sí" : "no"
+  if (refaccion === null) return;
+  const cancelada = confirm(
+    "¿Marcar esta reunión como cancelada?\n\nAceptar = No habrá reunión.\nCancelar = Mantener reunión activa."
   );
-  if (respuesta === null) return;
-
-  const cancelada = ["sí", "si", "s", "yes", "y"].includes(
-    respuesta.trim().toLowerCase()
-  );
-
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    mostrarAviso("avisoGeneral", "La fecha no es válida.", "error");
+    return;
+  }
   try {
     const { error } = await db
       .from("meetings")
       .update({
-        meeting_date: nuevaFecha,
-        preacher: cancelada ? null : (normalizarTexto(nuevoPredicador) || null),
-        snack_responsible: cancelada
-          ? null
-          : (normalizarTexto(nuevaRefaccion) || null),
-        cancelled: cancelada
+        meeting_date: fecha,
+        preacher: predicador.trim() || null,
+        snack_responsible: refaccion.trim() || null,
+        cancelled: cancelada,
+        updated_at: new Date().toISOString()
       })
       .eq("id", reunion.id);
-
     if (error) throw error;
-
-    alert("Reunión actualizada correctamente.");
-
-    await cargarDatos();
+    await cargarDatos(true);
     await mostrarGestionReuniones();
+    mostrarAviso("avisoGeneral", "Reunión actualizada.", "exito");
   } catch (error) {
-    console.error("Error al actualizar reunión:", error);
-    alert("No se pudo guardar la reunión. Verifica los permisos y la estructura de la tabla.");
+    console.error(error);
+    mostrarAviso("avisoGeneral", "No se pudo editar la reunión.", "error");
   }
 }
-
-
-
-/* =========================================================
-   15. EXPORTACIÓN CSV PARA LÍDERES
-   ========================================================= */
-
-async function exportarCumpleanosCSV() {
-  if (!esLider) return;
-
-  await cargarDatosPrivados();
-
-  if (!cumpleanosPrivados.length) {
-    alert("No hay cumpleaños para exportar.");
+async function eliminarReunion(reunion) {
+  if (!exigirLider()) return;
+  if (!confirm(`¿Eliminar la reunión del ${formatoFecha(reunion.meeting_date)}?`)) {
     return;
   }
-
-  const encabezados = [
-    "Nombre completo",
-    "Fecha de nacimiento",
-    "Teléfono"
+  try {
+    const { error } = await db
+      .from("meetings")
+      .delete()
+      .eq("id", reunion.id);
+    if (error) throw error;
+    await cargarDatos(true);
+    await mostrarGestionReuniones();
+    mostrarAviso("avisoGeneral", "Reunión eliminada.", "exito");
+  } catch (error) {
+    console.error(error);
+    mostrarAviso("avisoGeneral", "No se pudo eliminar la reunión.", "error");
+  }
+}
+/* =========================
+   15. ADMINISTRAR EVENTOS
+   ========================= */
+async function mostrarGestionEventos() {
+  if (!exigirLider()) return;
+  const contenedor = elemento("contenidoAdministracion");
+  if (!contenedor) return;
+  contenedor.replaceChildren();
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Administrar eventos";
+  contenedor.appendChild(titulo);
+  const form = document.createElement("form");
+  form.className = "formulario";
+  form.innerHTML = `
+    <div class="campo">
+      <label for="nuevoEventoTitulo">Nombre del evento</label>
+      <input id="nuevoEventoTitulo" maxlength="160" required>
+    </div>
+    <div class="campo">
+      <label for="nuevoEventoFecha">Fecha</label>
+      <input
+        id="nuevoEventoFecha"
+        type="date"
+        min="${primerDiaMes()}"
+        max="${fechaISO(new Date(
+          fechaSeleccionada.getFullYear(),
+          fechaSeleccionada.getMonth() + 1,
+          0
+        ))}"
+        required
+      >
+    </div>
+    <div class="campo">
+      <label for="nuevoEventoResponsable">Responsable (opcional)</label>
+      <input id="nuevoEventoResponsable" maxlength="120">
+    </div>
+    <div class="campo">
+      <label for="nuevoEventoRefaccion">Responsable de refacción (opcional)</label>
+      <input id="nuevoEventoRefaccion" maxlength="120">
+    </div>
+    <button class="boton boton-principal" type="submit">
+      Agregar evento
+    </button>
+  `;
+  form.addEventListener("submit", guardarNuevoEvento);
+  contenedor.appendChild(form);
+  const lista = document.createElement("div");
+  lista.className = "lista-administracion";
+  eventos
+    .slice()
+    .sort((a, b) => a.event_date.localeCompare(b.event_date))
+    .forEach(evento => {
+      const fila = document.createElement("div");
+      fila.className = "fila-administracion";
+      const info = document.createElement("div");
+      info.innerHTML = `
+        <strong>${escaparHTML(evento.title)}</strong>
+        <p>${escaparHTML(formatoFecha(evento.event_date))}</p>
+        <p>Responsable: ${escaparHTML(evento.preacher || "Por asignar")}</p>
+      `;
+      const acciones = document.createElement("div");
+      acciones.className = "acciones-lider";
+      const editar = document.createElement("button");
+      editar.type = "button";
+      editar.className = "boton boton-secundario";
+      editar.textContent = "Editar";
+      editar.addEventListener("click", () => editarEvento(evento));
+      const borrar = document.createElement("button");
+      borrar.type = "button";
+      borrar.className = "boton boton-borde";
+      borrar.textContent = "Eliminar";
+      borrar.addEventListener("click", () => eliminarEvento(evento));
+      acciones.append(editar, borrar);
+      fila.append(info, acciones);
+      lista.appendChild(fila);
+    });
+  contenedor.appendChild(lista);
+}
+async function guardarNuevoEvento(evento) {
+  evento.preventDefault();
+  if (!exigirLider()) return;
+  try {
+    const plan = await obtenerPlanMes(true);
+    if (!plan) return;
+    const fecha = elemento("nuevoEventoFecha").value;
+    if (!fecha.startsWith(
+      `${fechaSeleccionada.getFullYear()}-${String(
+        fechaSeleccionada.getMonth() + 1
+      ).padStart(2, "0")}`
+    )) {
+      mostrarAviso(
+        "avisoGeneral",
+        "El evento debe pertenecer al mes seleccionado.",
+        "error"
+      );
+      return;
+    }
+    const { error } = await db.from("events").insert({
+      monthly_plan_id: plan.id,
+      event_date: fecha,
+      title: elemento("nuevoEventoTitulo").value.trim(),
+      preacher: elemento("nuevoEventoResponsable").value.trim() || null,
+      snack_responsible: elemento("nuevoEventoRefaccion").value.trim() || null,
+      created_by: sesionActual.user.id
+    });
+    if (error) throw error;
+    await cargarDatos(true);
+    await mostrarGestionEventos();
+    mostrarAviso("avisoGeneral", "Evento guardado.", "exito");
+  } catch (error) {
+    console.error(error);
+    mostrarAviso(
+      "avisoGeneral",
+      "No se pudo guardar el evento. Comprueba la tabla events y sus permisos.",
+      "error"
+    );
+  }
+}
+async function editarEvento(evento) {
+  if (!exigirLider()) return;
+  const titulo = prompt("Nombre del evento:", evento.title);
+  if (titulo === null) return;
+  const fecha = prompt("Fecha (AAAA-MM-DD):", evento.event_date);
+  if (fecha === null) return;
+  const responsable = prompt(
+    "Responsable (opcional):",
+    evento.preacher || ""
+  );
+  if (responsable === null) return;
+  const refaccion = prompt(
+    "Responsable de refacción (opcional):",
+    evento.snack_responsible || ""
+  );
+  if (refaccion === null) return;
+  if (!titulo.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    mostrarAviso(
+      "avisoGeneral",
+      "El nombre y la fecha del evento son obligatorios.",
+      "error"
+    );
+    return;
+  }
+  try {
+    const { error } = await db
+      .from("events")
+      .update({
+        title: titulo.trim(),
+        event_date: fecha,
+        preacher: responsable.trim() || null,
+        snack_responsible: refaccion.trim() || null,
+        updated_by: sesionActual.user.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", evento.id);
+    if (error) throw error;
+    await cargarDatos(true);
+    await mostrarGestionEventos();
+    mostrarAviso("avisoGeneral", "Evento actualizado.", "exito");
+  } catch (error) {
+    console.error(error);
+    mostrarAviso("avisoGeneral", "No se pudo editar el evento.", "error");
+  }
+}
+async function eliminarEvento(evento) {
+  if (!exigirLider()) return;
+  if (!confirm(`¿Eliminar el evento "${evento.title}"?`)) return;
+  try {
+    const { error } = await db
+      .from("events")
+      .delete()
+      .eq("id", evento.id);
+    if (error) throw error;
+    await cargarDatos(true);
+    await mostrarGestionEventos();
+    mostrarAviso("avisoGeneral", "Evento eliminado.", "exito");
+  } catch (error) {
+    console.error(error);
+    mostrarAviso("avisoGeneral", "No se pudo eliminar el evento.", "error");
+  }
+}
+/* =========================
+   16. EXPORTAR CUMPLEAÑOS CSV
+   ========================= */
+function exportarCumpleanosCSV() {
+  if (!exigirLider()) return;
+  const filas = [
+    ["Nombre", "Fecha de nacimiento", "Teléfono"],
+    ...cumpleanos.map(persona => [
+      persona.full_name,
+      persona.birth_date,
+      persona.phone || ""
+    ])
   ];
-
-  const filas = cumpleanosPrivados.map((cumple) => [
-    cumple.full_name,
-    cumple.birth_date,
-    cumple.phone || ""
-  ]);
-
-  const escaparCSV = (valor) =>
-    `"${String(valor ?? "").replace(/"/g, '""')}"`;
-
-  const contenido = [
-    encabezados,
-    ...filas
-  ].map((fila) => fila.map(escaparCSV).join(",")).join("\r\n");
-
-  const blob = new Blob(
-    ["\uFEFF" + contenido],
+  const csv = filas
+    .map(fila => fila.map(valor => {
+      const texto = String(valor ?? "");
+      return `"${texto.replace(/"/g, '""')}"`;
+    }).join(","))
+    .join("\r\n");
+  const archivo = new Blob(
+    ["\uFEFF" + csv],
     { type: "text/csv;charset=utf-8;" }
   );
-
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(archivo);
   const enlace = document.createElement("a");
-
   enlace.href = url;
-  enlace.download = `cumpleanos_${fechaISO(new Date())}.csv`;
-
+  enlace.download =
+    `cumpleanos_${fechaSeleccionada.getFullYear()}_${String(
+      fechaSeleccionada.getMonth() + 1
+    ).padStart(2, "0")}.csv`;
   document.body.appendChild(enlace);
   enlace.click();
   enlace.remove();
-
   URL.revokeObjectURL(url);
 }
-
-
-/* =========================================================
-   16. DOCUMENTOS Y VERSIONES
-   ========================================================= */
-
+/* =========================
+   17. DOCUMENTOS OFICIALES
+   ========================= */
 function mostrarAvisoDocumentos() {
-  const contenedor = $("contenidoAdministracion");
+  if (!exigirLider()) return;
+  const contenedor = elemento("contenidoAdministracion");
   if (!contenedor) return;
-
   contenedor.replaceChildren();
-
   const titulo = document.createElement("h3");
   titulo.textContent = "Documentos oficiales";
-
-  const mensaje = document.createElement("p");
-  mensaje.textContent =
-    "La publicación de PDF oficiales, el historial de versiones, los borradores privados y la selección de la versión vigente todavía requieren implementar el módulo de documentos y su almacenamiento.";
-
-  contenedor.append(titulo, mensaje);
+  const aviso = document.createElement("p");
+  aviso.className = "texto-secundario";
+  aviso.textContent =
+    "El control de versiones, las copias de respaldo y el historial de documentos requieren una implementación adicional. Esta sección todavía no guarda versiones oficiales.";
+  contenedor.append(titulo, aviso);
 }
-
-
-/* =========================================================
-   17. ACTUALIZACIÓN EN TIEMPO REAL
-   ========================================================= */
-
+/* =========================
+   18. IMPRESIÓN DEL MES
+   ========================= */
+function imprimirCalendario() {
+  if (!esMiembroAutorizado()) {
+    mostrarAviso(
+      "avisoGeneral",
+      "Inicia sesión para imprimir el calendario autorizado.",
+      "error"
+    );
+    return;
+  }
+  const zona = elemento("zonaImpresion");
+  if (!zona) return;
+  const anio = fechaSeleccionada.getFullYear();
+  const mes = fechaSeleccionada.getMonth();
+  const nombreMes = `${MESES[mes]} ${anio}`;
+  const reunionesMes = reuniones
+    .slice()
+    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
+  const eventosMes = eventos
+    .slice()
+    .sort((a, b) => a.event_date.localeCompare(b.event_date));
+  const cumpleanosMes = cumpleanos
+    .filter(p => {
+      if (!p.birth_date) return false;
+      return new Date(`${p.birth_date}T12:00:00`).getMonth() === mes;
+    })
+    .sort((a, b) =>
+      a.birth_date.slice(8, 10).localeCompare(b.birth_date.slice(8, 10))
+    );
+  const dias = [];
+  const cantidadDias = new Date(anio, mes + 1, 0).getDate();
+  for (let dia = 1; dia <= cantidadDias; dia++) {
+    const fecha = fechaISO(new Date(anio, mes, dia));
+    const reunionesDia = reunionesMes.filter(r => r.meeting_date === fecha);
+    const eventosDia = eventosMes.filter(e => e.event_date === fecha);
+    const cumpleanosDia = cumpleanosMes.filter(
+      p => p.birth_date.slice(5) === fecha.slice(5)
+    );
+    if (
+      reunionesDia.length ||
+      eventosDia.length ||
+      cumpleanosDia.length
+    ) {
+      dias.push({
+        fecha,
+        reuniones: reunionesDia,
+        eventos: eventosDia,
+        cumpleanos: cumpleanosDia
+      });
+    }
+  }
+  const plan = planesMes[0];
+  zona.innerHTML = `
+    <div class="reporte-mensual">
+      <header class="reporte-encabezado">
+        <h1>Hope Group</h1>
+        <h2>Calendario mensual — ${escaparHTML(nombreMes)}</h2>
+        ${plan?.theme
+          ? `<p><strong>Tema:</strong> ${escaparHTML(plan.theme)}</p>`
+          : ""}
+        ${plan?.bible_verse
+          ? `<p><strong>Versículo:</strong> ${escaparHTML(plan.bible_verse)}</p>`
+          : ""}
+      </header>
+      <section class="reporte-seccion">
+        <h2>Actividades por fecha</h2>
+        ${dias.length ? dias.map(dia => `
+          <article class="reporte-dia">
+            <h3>${escaparHTML(formatoFecha(dia.fecha))}</h3>
+            ${dia.reuniones.map(r => `
+              <p>
+                <strong>Reunión:</strong>
+                ${r.cancelled ? "No habrá reunión" : "Programada"}.
+                ${r.cancelled ? "" : `
+                  Predicador: ${escaparHTML(r.preacher || "Por asignar")}.
+                  Refacción: ${escaparHTML(r.snack_responsible || "Por asignar")}.
+                `}
+              </p>
+            `).join("")}
+            ${dia.eventos.map(e => `
+              <p>
+                <strong>Evento:</strong> ${escaparHTML(e.title)}.
+                ${e.preacher
+                  ? `Responsable: ${escaparHTML(e.preacher)}.`
+                  : ""}
+                ${e.snack_responsible
+                  ? `Refacción: ${escaparHTML(e.snack_responsible)}.`
+                  : ""}
+              </p>
+            `).join("")}
+            ${dia.cumpleanos.map(p => `
+              <p>
+                <strong>Cumpleaños:</strong> ${escaparHTML(p.full_name)}
+              </p>
+            `).join("")}
+          </article>
+        `).join("") : `
+          <p>No hay actividades registradas para este mes.</p>
+        `}
+      </section>
+      <section class="reporte-seccion">
+        <h2>Todos los cumpleaños del mes</h2>
+        ${cumpleanosMes.length ? `
+          <ul>
+            ${cumpleanosMes.map(p => `
+              <li>
+                ${escaparHTML(p.birth_date.slice(8, 10))} — 
+                ${escaparHTML(p.full_name)}
+              </li>
+            `).join("")}
+          </ul>
+        ` : "<p>No hay cumpleaños registrados.</p>"}
+      </section>
+      <footer class="reporte-pie">
+        Hope Group · Documento generado el
+        ${escaparHTML(new Date().toLocaleDateString("es-GT"))}
+      </footer>
+    </div>
+  `;
+  zona.hidden = false;
+  document.body.classList.add("imprimiendo-calendario");
+  const limpiarDespues = () => {
+    zona.hidden = true;
+    document.body.classList.remove("imprimiendo-calendario");
+    window.removeEventListener("afterprint", limpiarDespues);
+  };
+  window.addEventListener("afterprint", limpiarDespues);
+  // El CSS de impresión debe mostrar zonaImpresion y ocultar el resto.
+  window.print();
+  // Respaldo para navegadores que no emitan afterprint.
+  setTimeout(limpiarDespues, 1500);
+}
+/* =========================
+   19. ACTUALIZACIONES EN TIEMPO REAL
+   ========================= */
 function configurarTiempoReal() {
-  if (!db || canalTiempoReal) return;
-
+  if (!db) return;
+  if (canalTiempoReal) {
+    db.removeChannel(canalTiempoReal);
+  }
   canalTiempoReal = db
-    .channel("hope-group-reuniones")
+    .channel("hope-group-cambios")
     .on(
       "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "meetings"
-      },
-      async () => {
-        await cargarDatos();
-      }
+      { event: "*", schema: "public", table: "meetings" },
+      () => cargarDatos(true)
     )
-    .subscribe((estado) => {
-      if (estado === "CHANNEL_ERROR") {
-        console.warn("No se pudo activar la sincronización en tiempo real.");
-      }
-    });
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "birthdays" },
+      () => cargarDatos(true)
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "events" },
+      () => cargarDatos(true)
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "monthly_plans" },
+      () => cargarDatos(true)
+    )
+    .subscribe();
 }
