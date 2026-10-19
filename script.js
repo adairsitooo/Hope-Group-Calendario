@@ -1459,9 +1459,11 @@ function mostrarAvisoDocumentos() {
     "El control de versiones, las copias de respaldo y el historial de documentos requieren una implementación adicional. Esta sección todavía no guarda versiones oficiales.";
   contenedor.append(titulo, aviso);
 }
-/* =========================
-   18. IMPRESIÓN DEL MES
-   ========================= */
+
+/* =========================================================
+   18. IMPRESIÓN DEL MES / GENERAR PDF
+   ========================================================= */
+
 function imprimirCalendario() {
   if (!esMiembroAutorizado()) {
     mostrarAviso(
@@ -1471,128 +1473,386 @@ function imprimirCalendario() {
     );
     return;
   }
+
   const zona = elemento("zonaImpresion");
-  if (!zona) return;
+
+  if (!zona) {
+    console.error("No se encontró #zonaImpresion.");
+    return;
+  }
+
   const anio = fechaSeleccionada.getFullYear();
   const mes = fechaSeleccionada.getMonth();
   const nombreMes = `${MESES[mes]} ${anio}`;
+
+  const prefijoMes =
+    `${anio}-${String(mes + 1).padStart(2, "0")}`;
+
   const reunionesMes = reuniones
+    .filter(r => r.meeting_date?.startsWith(prefijoMes))
     .slice()
-    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
-  const eventosMes = eventos
-    .slice()
-    .sort((a, b) => a.event_date.localeCompare(b.event_date));
-  const cumpleanosMes = cumpleanos
-    .filter(p => {
-      if (!p.birth_date) return false;
-      return new Date(`${p.birth_date}T12:00:00`).getMonth() === mes;
-    })
     .sort((a, b) =>
-      a.birth_date.slice(8, 10).localeCompare(b.birth_date.slice(8, 10))
+      a.meeting_date.localeCompare(b.meeting_date)
     );
-  const dias = [];
-  const cantidadDias = new Date(anio, mes + 1, 0).getDate();
+
+  const eventosMes = eventos
+    .filter(e => e.event_date?.startsWith(prefijoMes))
+    .slice()
+    .sort((a, b) =>
+      a.event_date.localeCompare(b.event_date)
+    );
+
+  const cumpleanosMes = cumpleanos
+    .filter(p =>
+      p.birth_date &&
+      p.birth_date.slice(5, 7) ===
+        String(mes + 1).padStart(2, "0")
+    )
+    .slice()
+    .sort((a, b) =>
+      a.birth_date.slice(5, 10)
+        .localeCompare(b.birth_date.slice(5, 10)) ||
+      (pNombre(a)).localeCompare(pNombre(b), "es")
+    );
+
+  const plan = planesMes.find(p =>
+    Number(p.year) === anio &&
+    Number(p.month) === mes + 1
+  );
+
+  const escapar = valor =>
+    escaparHTML(String(valor ?? ""));
+
+  const primerDia = obtenerDiaSemana(
+    new Date(anio, mes, 1)
+  );
+
+  const cantidadDias =
+    new Date(anio, mes + 1, 0).getDate();
+
+  /* Construir la cuadrícula mensual completa */
+  const celdas = [];
+
+  for (let i = 0; i < primerDia; i++) {
+    celdas.push(`
+      <div
+        class="reporte-celda reporte-celda-vacia"
+        aria-hidden="true"
+      ></div>
+    `);
+  }
+
   for (let dia = 1; dia <= cantidadDias; dia++) {
     const fecha = fechaISO(new Date(anio, mes, dia));
-    const reunionesDia = reunionesMes.filter(r => r.meeting_date === fecha);
-    const eventosDia = eventosMes.filter(e => e.event_date === fecha);
-    const cumpleanosDia = cumpleanosMes.filter(
-      p => p.birth_date.slice(5) === fecha.slice(5)
+
+    const reunionesDia = reunionesMes.filter(
+      r => r.meeting_date === fecha
     );
-    if (
-      reunionesDia.length ||
-      eventosDia.length ||
-      cumpleanosDia.length
-    ) {
-      dias.push({
-        fecha,
-        reuniones: reunionesDia,
-        eventos: eventosDia,
-        cumpleanos: cumpleanosDia
-      });
-    }
+
+    const eventosDia = eventosMes.filter(
+      e => e.event_date === fecha
+    );
+
+    const cumpleanosDia = cumpleanosMes.filter(
+      p => p.birth_date.slice(5, 10) === fecha.slice(5)
+    );
+
+    const marcas = [
+      ...reunionesDia.map(r => `
+        <div class="reporte-marca">
+          ${r.cancelled
+            ? "<strong>No habrá reunión</strong>"
+            : "Reunión"}
+        </div>
+      `),
+
+      ...eventosDia.map(e => `
+        <div class="reporte-marca">
+          ${escapar(e.title || "Evento")}
+        </div>
+      `),
+
+      ...cumpleanosDia.map(p => `
+        <div class="reporte-marca reporte-marca-cumple">
+          ${escapar(p.full_name)}
+        </div>
+      `)
+    ].join("");
+
+    celdas.push(`
+      <div class="reporte-celda">
+        <span class="reporte-numero-dia">${dia}</span>
+        <div class="reporte-marcas">
+          ${marcas}
+        </div>
+      </div>
+    `);
   }
-  const plan = planesMes[0];
+
+  while (celdas.length % 7 !== 0) {
+    celdas.push(`
+      <div
+        class="reporte-celda reporte-celda-vacia"
+        aria-hidden="true"
+      ></div>
+    `);
+  }
+
+  /* Unir reuniones y eventos y ordenarlos cronológicamente */
+  const actividades = [
+    ...reunionesMes.map(r => ({
+      fecha: r.meeting_date,
+      tipo: "reunion",
+      datos: r
+    })),
+    ...eventosMes.map(e => ({
+      fecha: e.event_date,
+      tipo: "evento",
+      datos: e
+    }))
+  ].sort((a, b) =>
+    a.fecha.localeCompare(b.fecha) ||
+    a.tipo.localeCompare(b.tipo)
+  );
+
+  const htmlActividades = actividades.length
+    ? actividades.map(actividad => {
+        const fecha = escapar(
+          formatoFecha(actividad.fecha)
+        );
+
+        if (actividad.tipo === "reunion") {
+          const r = actividad.datos;
+
+          return `
+            <article class="reporte-actividad">
+              <div class="reporte-fecha">${fecha}</div>
+
+              <div class="reporte-actividad-contenido">
+                <h3>
+                  ${r.cancelled
+                    ? "No habrá reunión"
+                    : "Reunión de Hope Group"}
+                </h3>
+
+                ${r.cancelled ? "" : `
+                  <p>
+                    <strong>Predicador:</strong>
+                    ${escapar(r.preacher || "Por asignar")}
+                  </p>
+
+                  <p>
+                    <strong>Responsable de refacción:</strong>
+                    ${escapar(
+                      r.snack_responsible || "Por asignar"
+                    )}
+                  </p>
+                `}
+              </div>
+            </article>
+          `;
+        }
+
+        const e = actividad.datos;
+
+        return `
+          <article class="reporte-actividad">
+            <div class="reporte-fecha">${fecha}</div>
+
+            <div class="reporte-actividad-contenido">
+              <h3>${escapar(e.title || "Evento")}</h3>
+
+              <p>
+                <strong>Predicador / responsable:</strong>
+                ${escapar(e.preacher || "Por asignar")}
+              </p>
+
+              <p>
+                <strong>Responsable de refacción:</strong>
+                ${escapar(
+                  e.snack_responsible || "Por asignar"
+                )}
+              </p>
+            </div>
+          </article>
+        `;
+      }).join("")
+    : `
+      <p class="reporte-vacio">
+        No hay reuniones ni eventos registrados para este mes.
+      </p>
+    `;
+
+  const htmlCumpleanos = cumpleanosMes.length
+    ? `
+      <ul class="reporte-lista-cumpleanos">
+        ${cumpleanosMes.map(p => {
+          const dia = Number(p.birth_date.slice(8, 10));
+
+          const fechaCumple = new Date(
+            anio,
+            mes,
+            dia
+          );
+
+          const fechaTexto =
+            fechaCumple.toLocaleDateString("es-GT", {
+              day: "numeric",
+              month: "long"
+            });
+
+          return `
+            <li>
+              <span class="reporte-cumple-fecha">
+                ${escapar(fechaTexto)}
+              </span>
+              <span>${escapar(p.full_name)}</span>
+            </li>
+          `;
+        }).join("")}
+      </ul>
+    `
+    : `
+      <p class="reporte-vacio">
+        No hay cumpleaños registrados para este mes.
+      </p>
+    `;
+
+  /* Crear el documento mensual */
   zona.innerHTML = `
     <div class="reporte-mensual">
       <header class="reporte-encabezado">
-        <h1>Hope Group</h1>
-        <h2>Calendario mensual — ${escaparHTML(nombreMes)}</h2>
-        ${plan?.theme
-          ? `<p><strong>Tema:</strong> ${escaparHTML(plan.theme)}</p>`
-          : ""}
-        ${plan?.bible_verse
-          ? `<p><strong>Versículo:</strong> ${escaparHTML(plan.bible_verse)}</p>`
-          : ""}
+
+        <div class="reporte-marca-institucional">
+          <img
+            class="reporte-logo"
+            src="recursos/logo.png"
+            alt="Logo de Hope Group"
+          >
+
+          <div>
+            <h1>Hope Group</h1>
+            <p class="reporte-subtitulo">
+              Calendario y organización
+            </p>
+          </div>
+        </div>
+
+        <h2>
+          Calendario mensual — ${escapar(nombreMes)}
+        </h2>
+
+        ${plan?.theme ? `
+          <p>
+            <strong>Tema del mes:</strong>
+            ${escapar(plan.theme)}
+          </p>
+        ` : ""}
+
+        ${plan?.bible_verse ? `
+          <p>
+            <strong>Versículo:</strong>
+            ${escapar(plan.bible_verse)}
+          </p>
+        ` : ""}
       </header>
-      <section class="reporte-seccion">
-        <h2>Actividades por fecha</h2>
-        ${dias.length ? dias.map(dia => `
-          <article class="reporte-dia">
-            <h3>${escaparHTML(formatoFecha(dia.fecha))}</h3>
-            ${dia.reuniones.map(r => `
-              <p>
-                <strong>Reunión:</strong>
-                ${r.cancelled ? "No habrá reunión" : "Programada"}.
-                ${r.cancelled ? "" : `
-                  Predicador: ${escaparHTML(r.preacher || "Por asignar")}.
-                  Refacción: ${escaparHTML(r.snack_responsible || "Por asignar")}.
-                `}
-              </p>
+
+      <section
+        class="reporte-seccion reporte-seccion-calendario"
+      >
+        <h2>Calendario del mes</h2>
+
+        <div class="reporte-calendario">
+          <div class="reporte-dias-semana">
+            ${DIAS.map(dia => `
+              <div>${escapar(dia)}</div>
             `).join("")}
-            ${dia.eventos.map(e => `
-              <p>
-                <strong>Evento:</strong> ${escaparHTML(e.title)}.
-                ${e.preacher
-                  ? `Responsable: ${escaparHTML(e.preacher)}.`
-                  : ""}
-                ${e.snack_responsible
-                  ? `Refacción: ${escaparHTML(e.snack_responsible)}.`
-                  : ""}
-              </p>
-            `).join("")}
-            ${dia.cumpleanos.map(p => `
-              <p>
-                <strong>Cumpleaños:</strong> ${escaparHTML(p.full_name)}
-              </p>
-            `).join("")}
-          </article>
-        `).join("") : `
-          <p>No hay actividades registradas para este mes.</p>
-        `}
+          </div>
+
+          <div class="reporte-cuadricula">
+            ${celdas.join("")}
+          </div>
+        </div>
+
+        <div class="reporte-leyenda">
+          <span>Reunión</span>
+          <span>Evento</span>
+          <span>Cumpleaños</span>
+        </div>
       </section>
+
       <section class="reporte-seccion">
-        <h2>Todos los cumpleaños del mes</h2>
-        ${cumpleanosMes.length ? `
-          <ul>
-            ${cumpleanosMes.map(p => `
-              <li>
-                ${escaparHTML(p.birth_date.slice(8, 10))} — 
-                ${escaparHTML(p.full_name)}
-              </li>
-            `).join("")}
-          </ul>
-        ` : "<p>No hay cumpleaños registrados.</p>"}
+        <h2>Eventos y reuniones</h2>
+
+        <div class="reporte-lista-actividades">
+          ${htmlActividades}
+        </div>
       </section>
+
+      <section class="reporte-seccion">
+        <h2>Cumpleañeros del mes</h2>
+        ${htmlCumpleanos}
+      </section>
+
       <footer class="reporte-pie">
         Hope Group · Documento generado el
-        ${escaparHTML(new Date().toLocaleDateString("es-GT"))}
+        ${escapar(
+          new Date().toLocaleDateString("es-GT")
+        )}
       </footer>
     </div>
   `;
+
+  /* Mostrar únicamente el documento al imprimir */
   zona.hidden = false;
   document.body.classList.add("imprimiendo-calendario");
+
+  let limpiezaProgramada = false;
+
   const limpiarDespues = () => {
+    if (limpiezaProgramada) return;
+    limpiezaProgramada = true;
+
     zona.hidden = true;
-    document.body.classList.remove("imprimiendo-calendario");
-    window.removeEventListener("afterprint", limpiarDespues);
+    document.body.classList.remove(
+      "imprimiendo-calendario"
+    );
+
+    window.removeEventListener(
+      "afterprint",
+      limpiarDespues
+    );
   };
-  window.addEventListener("afterprint", limpiarDespues);
-  // El CSS de impresión debe mostrar zonaImpresion y ocultar el resto.
-  window.print();
-  // Respaldo para navegadores que no emitan afterprint.
-  setTimeout(limpiarDespues, 1500);
+
+  window.addEventListener(
+    "afterprint",
+    limpiarDespues
+  );
+
+  /* Esperar a que el logo cargue antes de imprimir */
+  const imagenes = [...zona.querySelectorAll("img")];
+
+  Promise.all(imagenes.map(img => {
+    if (img.complete) return Promise.resolve();
+
+    return new Promise(resolve => {
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+    });
+  })).then(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
+  });
 }
+
+/* Nombre seguro para ordenar cumpleaños */
+function pNombre(persona) {
+  return String(persona?.full_name || "");
+}
+
 /* =========================
    19. ACTUALIZACIONES EN TIEMPO REAL
    ========================= */
