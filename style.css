@@ -1069,3 +1069,226 @@ img {
     text-decoration: none !important;
   }
 }
+
+/* =========================================================
+   AJUSTES HOPE GROUP
+   Tarjeta informativa y documento mensual
+   ========================================================= */
+
+/* Tarjeta "Un mismo propósito" sin líneas decorativas */
+.tarjeta-informacion {
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.detalle-decorativo {
+  display: none !important;
+}
+
+/* Encabezado del documento */
+.reporte-marca-institucional {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.reporte-logo {
+  display: block;
+  width: 66px;
+  height: 66px;
+  flex: 0 0 66px;
+  object-fit: contain;
+}
+
+.reporte-subtitulo {
+  margin: 0 !important;
+  color: #555 !important;
+  font-size: 9pt;
+}
+
+/* Cuadrícula mensual */
+.reporte-calendario {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.reporte-dias-semana,
+.reporte-cuadricula {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.reporte-dias-semana > div {
+  padding: 7px 2px;
+  background: #eeeeee;
+  border: 1px solid #d1d1d1;
+  font-size: 8pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reporte-celda {
+  min-width: 0;
+  min-height: 65px;
+  padding: 5px;
+  border: 1px solid #d8d8d8;
+  overflow-wrap: anywhere;
+}
+
+.reporte-celda-vacia {
+  background: #f8f8f8;
+}
+
+.reporte-numero-dia {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.reporte-marcas {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reporte-marca {
+  font-size: 6.5pt;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.reporte-marca-cumple {
+  color: #454545;
+}
+
+.reporte-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 15px;
+  margin-top: 8px;
+  color: #444;
+  font-size: 7.5pt;
+}
+
+/* Listado cronológico de actividades */
+.reporte-lista-actividades {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.reporte-actividad {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #dedede;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.reporte-fecha {
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.reporte-actividad-contenido {
+  min-width: 0;
+}
+
+.reporte-actividad h3 {
+  margin: 0 0 4px;
+  font-size: 10pt;
+}
+
+.reporte-actividad p {
+  margin: 3px 0;
+  font-size: 9pt;
+  overflow-wrap: anywhere;
+}
+
+.reporte-vacio {
+  color: #555;
+  font-size: 9pt;
+}
+
+/* Cumpleañeros */
+.reporte-lista-cumpleanos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reporte-lista-cumpleanos li {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e1e1e1;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.reporte-cumple-fecha {
+  font-weight: 700;
+}
+
+/* Impresión en papel carta */
+@page {
+  size: letter portrait;
+  margin: 10mm;
+}
+
+@media print {
+  body.imprimiendo-calendario #zonaImpresion {
+    display: block !important;
+  }
+
+  body.imprimiendo-calendario .reporte-marca-institucional {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.imprimiendo-calendario .reporte-seccion-calendario {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.imprimiendo-calendario .reporte-celda {
+    min-height: 58px;
+    padding: 4px;
+  }
+
+  body.imprimiendo-calendario .reporte-marca {
+    font-size: 6.5pt;
+  }
+
+  body.imprimiendo-calendario .reporte-actividad,
+  body.imprimiendo-calendario .reporte-lista-cumpleanos li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.imprimiendo-calendario .reporte-encabezado {
+    margin-bottom: 14px;
+  }
+
+  body.imprimiendo-calendario .reporte-seccion {
+    margin-top: 16px;
+  }
+
+  body.imprimiendo-calendario .reporte-pie {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .tarjeta-informacion {
+    min-height: 155px;
+  }
+}
+
