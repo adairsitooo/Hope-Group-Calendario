@@ -1726,7 +1726,7 @@ function imprimirCalendario() {
         <div class="reporte-marca-institucional">
           <img
             class="reporte-logo"
-            src="recursos/logo.png"
+            src="recursos/logo.PNG"
             alt="Logo de Hope Group"
           >
 
