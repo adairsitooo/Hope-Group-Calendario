@@ -17,8 +17,12 @@
   <header class="encabezado">
     <div class="encabezado-contenido">
       <a class="identidad-grupo" href="#" aria-label="Inicio de Hope Group">
-        <img class="logo" src="recursos/logo.PNG" alt="Logo de Hope Group"
-     onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+        <img
+          class="logo"
+          src="recursos/logo.PNG"
+          alt="Logo de Hope Group"
+          onerror="this.hidden=true;this.nextElementSibling.hidden=false"
+        >
         <span class="logo-predeterminado" hidden>HG</span>
         <span class="identidad-texto">
           <span class="nombre-grupo">Hope Group</span>
@@ -91,7 +95,9 @@
               type="button"
               aria-label="Mes anterior"
             >‹</button>
-            <h3 id="mesActual" aria-live="polite">Calendario mensual</h3>
+            <h3 id="mesActual" aria-live="polite">
+              Calendario mensual
+            </h3>
             <button
               id="mesSiguiente"
               class="boton boton-secundario"
@@ -137,11 +143,11 @@
           </section>
           <div class="separador"></div>
           <button
-           id="btnImprimir"
-           class="boton boton-principal ancho-completo"
-           type="button"
+            id="btnImprimir"
+            class="boton boton-principal ancho-completo"
+            type="button"
           >
-           Generar PDF del calendario del mes
+            Generar PDF del calendario del mes
           </button>
           <p class="texto-secundario">
             El documento mensual deberá incluir todos los cumpleaños,
@@ -157,7 +163,11 @@
             </div>
             <span class="icono-tarjeta" aria-hidden="true">♡</span>
           </div>
-          <div id="cumpleanosMes" class="lista-cumpleanos" aria-live="polite">
+          <div
+            id="cumpleanosMes"
+            class="lista-cumpleanos"
+            aria-live="polite"
+          >
             <p class="texto-secundario">
               Cargando cumpleaños...
             </p>
@@ -170,121 +180,13 @@
         </section>
       </div>
       <aside class="columna-lateral">
-        <!-- ACCESO Y SOLICITUD DE ESTACAS -->
+        <!-- ACCESO DE LÍDERES -->
         <section id="accesos" class="tarjeta tarjeta-panel-lider">
           <p class="texto-superior">ÁREA PRIVADA</p>
           <h2>Acceso al calendario</h2>
           <p class="texto-secundario">
-            Selecciona tu área e inicia sesión con tu cuenta autorizada.
+            Inicia sesión con tu cuenta de líder autorizada.
           </p>
-          <div class="acciones-lider" role="group" aria-label="Tipo de acceso">
-            <button
-              id="btnAccesoEstacas"
-              class="boton boton-secundario ancho-completo"
-              type="button"
-              aria-controls="accesoEstacas"
-            >
-              Acceso de Estacas
-            </button>
-            <button
-              id="btnAccesoLideres"
-              class="boton boton-secundario ancho-completo"
-              type="button"
-              aria-controls="accesoLideres"
-            >
-              Acceso de Líderes
-            </button>
-          </div>
-          <!-- ACCESO ESTACAS -->
-          <section id="accesoEstacas" hidden>
-            <div class="separador"></div>
-            <h3>Ingreso de Estacas</h3>
-            <p class="texto-secundario">
-              Acceso para usuarios de Estacas autorizados.
-            </p>
-            <form id="formLoginEstacas" class="formulario">
-              <div class="campo">
-                <label for="correoEstacas">Correo electrónico</label>
-                <input
-                  id="correoEstacas"
-                  name="correo"
-                  type="email"
-                  autocomplete="username"
-                  maxlength="254"
-                  required
-                >
-              </div>
-              <div class="campo">
-                <label for="claveEstacas">Contraseña</label>
-                <input
-                  id="claveEstacas"
-                  name="clave"
-                  type="password"
-                  autocomplete="current-password"
-                  required
-                >
-              </div>
-              <button
-                id="btnLoginEstacas"
-                class="boton boton-principal ancho-completo"
-                type="submit"
-              >
-                Iniciar sesión
-              </button>
-            </form>
-            <div
-              id="avisoLoginEstacas"
-              class="aviso"
-              role="status"
-              aria-live="polite"
-              hidden
-            ></div>
-            <div class="separador"></div>
-            <h3>Solicitar acceso</h3>
-            <p class="texto-secundario">
-              Si todavía no tienes una cuenta, puedes enviar una solicitud
-              para que un líder revise tu acceso.
-            </p>
-            <form id="formSolicitudEstacas" class="formulario">
-              <div class="campo">
-                <label for="nombreSolicitudEstacas">Nombre completo</label>
-                <input
-                  id="nombreSolicitudEstacas"
-                  name="nombre"
-                  type="text"
-                  maxlength="120"
-                  autocomplete="name"
-                  required
-                >
-              </div>
-              <div class="campo">
-                <label for="correoSolicitudEstacas">Correo electrónico</label>
-                <input
-                  id="correoSolicitudEstacas"
-                  name="correo"
-                  type="email"
-                  maxlength="254"
-                  autocomplete="email"
-                  required
-                >
-              </div>
-              <button
-                id="btnSolicitudEstacas"
-                class="boton boton-secundario ancho-completo"
-                type="submit"
-              >
-                Enviar solicitud
-              </button>
-            </form>
-            <div
-              id="avisoSolicitudEstacas"
-              class="aviso"
-              role="status"
-              aria-live="polite"
-              hidden
-            ></div>
-          </section>
-          <!-- ACCESO LÍDERES -->
           <section id="accesoLideres" hidden>
             <div class="separador"></div>
             <h3>Ingreso de líderes</h3>
@@ -329,87 +231,7 @@
               hidden
             ></div>
           </section>
-          <!-- PANEL ESTACAS -->
-          <section id="panelEstacas" hidden>
-            <div class="separador"></div>
-            <h3>Portal de Estacas</h3>
-            <p id="correoActivoEstacas" class="correo-activo"></p>
-            <p class="texto-secundario">
-              Puedes consultar el calendario y registrar cumpleaños
-              según los permisos de tu cuenta.
-            </p>
-            <button
-              id="btnRegistrarCumpleEstacas"
-              class="boton boton-secundario ancho-completo"
-              type="button"
-            >
-              Registrar cumpleaños
-            </button>
-            <button
-              id="btnActualizarEstacas"
-              class="boton boton-secundario ancho-completo"
-              type="button"
-            >
-              Actualizar información
-            </button>
-            <button
-              id="btnLogoutEstacas"
-              class="boton boton-borde ancho-completo"
-              type="button"
-            >
-              Cerrar sesión
-            </button>
-            <div id="formularioCumpleEstacas" hidden>
-              <div class="separador"></div>
-              <h3>Registrar cumpleaños</h3>
-              <form id="formCumpleanosEstacas" class="formulario">
-                <div class="campo">
-                  <label for="nombreCumpleEstacas">Nombre completo</label>
-                  <input
-                    id="nombreCumpleEstacas"
-                    name="nombre"
-                    type="text"
-                    maxlength="120"
-                    required
-                  >
-                </div>
-                <div class="campo">
-                  <label for="fechaCumpleEstacas">Fecha de nacimiento</label>
-                  <input
-                    id="fechaCumpleEstacas"
-                    name="fecha"
-                    type="date"
-                    required
-                  >
-                </div>
-                <div class="campo">
-                  <label for="telefonoCumpleEstacas">Teléfono (opcional)</label>
-                  <input
-                    id="telefonoCumpleEstacas"
-                    name="telefono"
-                    type="tel"
-                    maxlength="25"
-                    autocomplete="tel"
-                  >
-                </div>
-                <button
-                  id="btnGuardarCumpleEstacas"
-                  class="boton boton-principal ancho-completo"
-                  type="submit"
-                >
-                  Guardar cumpleaños
-                </button>
-              </form>
-              <div
-                id="avisoCumpleEstacas"
-                class="aviso"
-                role="status"
-                aria-live="polite"
-                hidden
-              ></div>
-            </div>
-          </section>
-          <!-- PANEL LÍDERES -->
+          <!-- PANEL DE LÍDERES -->
           <section id="panelLider" hidden>
             <div class="separador"></div>
             <h3>Panel de líderes</h3>
@@ -477,8 +299,11 @@
     </section>
   </main>
   <!-- CONTENEDOR PARA EL DOCUMENTO MENSUAL DE IMPRESIÓN -->
-  <section id="zonaImpresion" hidden aria-label="Calendario mensual imprimible">
-  </section>
+  <section
+    id="zonaImpresion"
+    hidden
+    aria-label="Calendario mensual imprimible"
+  ></section>
   <footer class="pie-pagina">
     <div class="pie-contenido">
       <div>
@@ -491,27 +316,21 @@
     </div>
     <div class="copyright">
       <p>
-        © <span id="anioActual"></span> Hope Group. Todos los derechos reservados.
+        © <span id="anioActual"></span> Hope Group.
+        Todos los derechos reservados.
       </p>
     </div>
   </footer>
   <script>
     document.getElementById("anioActual").textContent =
       new Date().getFullYear();
-    const accesoEstacas = document.getElementById("accesoEstacas");
     const accesoLideres = document.getElementById("accesoLideres");
-    const btnAccesoEstacas = document.getElementById("btnAccesoEstacas");
-    const btnAccesoLideres = document.getElementById("btnAccesoLideres");
-    btnAccesoEstacas.addEventListener("click", () => {
-      accesoEstacas.hidden = false;
-      accesoLideres.hidden = true;
-      accesoEstacas.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-    btnAccesoLideres.addEventListener("click", () => {
-      accesoLideres.hidden = false;
-      accesoEstacas.hidden = true;
-      accesoLideres.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
+    const accesoInicial = document.querySelector(".acceso-lideres");
+    if (accesoInicial) {
+      accesoInicial.addEventListener("click", () => {
+        accesoLideres.hidden = false;
+      });
+    }
   </script>
 </body>
 </html>
