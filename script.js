@@ -1413,9 +1413,7 @@ async function guardarNuevoEvento(evento) {
       event_date: fecha,
       title: elemento("nuevoEventoTitulo").value.trim(),
       preacher: elemento("nuevoEventoResponsable").value.trim() || null,
-      snack_responsible: elemento("nuevoEventoRefaccion").value.trim() || null,
-      created_by: sesionActual.user.id
-    });
+snack_responsible: elemento("nuevoEventoRefaccion").value.trim() || null
     if (error) throw error;
     await cargarDatos(true);
     await mostrarGestionEventos();
@@ -1949,4 +1947,5 @@ function configurarTiempoReal() {
     )
     .subscribe();
 }
+
 
