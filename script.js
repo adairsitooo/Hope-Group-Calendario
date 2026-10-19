@@ -838,14 +838,24 @@ async function registrarCumpleanos(evento) {
       "exito"
     );
     await cargarDatos(true);
-  } catch (error) {
-    console.error(error);
-    mostrarAviso(
-      "avisoCumpleEstacas",
-      "No se pudo registrar el cumpleaños. Puede que ya exista o que falten permisos en Supabase.",
-      "error"
-    );
-  }
+  
+} catch (error) {
+  console.error("Error al registrar cumpleaños:", error);
+
+  const detalle = [
+    error?.message || String(error),
+    error?.code ? `Código: ${error.code}` : "",
+    error?.details ? `Detalle: ${error.details}` : "",
+    error?.hint ? `Sugerencia: ${error.hint}` : ""
+  ].filter(Boolean).join(" | ");
+
+  mostrarAviso(
+    "avisoCumpleEstacas",
+    `No se pudo registrar: ${detalle}`,
+    "error"
+  );
+}
+
 }
 /* =========================
    12. ADMINISTRAR CUMPLEAÑOS
@@ -894,14 +904,24 @@ async function mostrarGestionCumpleanos() {
         "Cumpleaños agregado correctamente.",
         "exito"
       );
-    } catch (error) {
-      console.error(error);
-      mostrarAviso(
-        "avisoGeneral",
-        "No se pudo agregar el cumpleaños.",
-        "error"
-      );
-    }
+    
+} catch (error) {
+  console.error("Error al agregar cumpleaños:", error);
+
+  const detalle = [
+    error?.message || String(error),
+    error?.code ? `Código: ${error.code}` : "",
+    error?.details ? `Detalle: ${error.details}` : "",
+    error?.hint ? `Sugerencia: ${error.hint}` : ""
+  ].filter(Boolean).join(" | ");
+
+  mostrarAviso(
+    "avisoGeneral",
+    `No se pudo agregar el cumpleaños: ${detalle}`,
+    "error"
+  );
+}
+
   });
   contenedor.appendChild(form);
   cumpleanos.forEach(persona => {
