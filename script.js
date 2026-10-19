@@ -515,17 +515,17 @@ async function cargarDatos(forzar = false) {
         .eq("year", fechaSeleccionada.getFullYear())
         .eq("month", fechaSeleccionada.getMonth() + 1),
       db
-        .from("meetings")
-        .select(
-          "id, monthly_plan_id, meeting_date, cancelled, preacher, snack_responsible"
-        )
-        .gte("meeting_date", fechaInicio)
-        .lt("meeting_date", fechaFin),
+  .from("meetings")
+  .select(
+    "id, monthly_plan_id, meeting_date, meeting_type, cancelled, preacher, snack_responsible"
+  )
+  .gte("meeting_date", fechaInicio)
+  .lt("meeting_date", fechaFin),
       db
-        .from("events")
-        .select("id, monthly_plan_id, meeting_date, meeting_type, cancelled, preacher, snack_responsible")
-        .gte("event_date", fechaInicio)
-        .lt("event_date", fechaFin),
+  .from("events")
+  .select("id, monthly_plan_id, event_date, title, preacher, snack_responsible")
+  .gte("event_date", fechaInicio)
+  .lt("event_date", fechaFin),
       db
         .from("birthdays")
         .select("id, full_name, birth_date, phone, created_at")
@@ -1949,3 +1949,4 @@ function configurarTiempoReal() {
     )
     .subscribe();
 }
+
