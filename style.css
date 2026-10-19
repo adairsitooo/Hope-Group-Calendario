@@ -1303,3 +1303,17 @@ img {
   border-left: 4px solid #a855f7;
 }
 
+
+.reporte-marca-grupo {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.reporte-marca-discipulado {
+  background-color: #f3e8ff;
+  color: #7e22ce;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
