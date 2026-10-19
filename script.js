@@ -79,6 +79,12 @@ async function iniciarAplicacion() {
       "No se pudo iniciar el calendario. Comprueba la configuración de Supabase.",
       "error"
     );
+     alert(
+  "Error de Supabase:\n" +
+  (error?.message || String(error)) +
+  "\nCódigo: " + (error?.code || "sin código") +
+  "\nDetalle: " + (error?.details || "sin detalle")
+);
   }
 }
 /* =========================
