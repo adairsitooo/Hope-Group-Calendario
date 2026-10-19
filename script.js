@@ -540,6 +540,25 @@ async function cargarDatos(forzar = false) {
     ]) {
       if (resultado.error) throw resultado.error;
     }
+     const resultados = [
+  ["monthly_plans", resultadoPlanes],
+  ["meetings", resultadoReuniones],
+  ["events", resultadoEventos],
+  ["birthdays", resultadoCumpleanos]
+];
+
+for (const [tabla, resultado] of resultados) {
+  if (resultado.error) {
+    const error = resultado.error;
+
+    throw new Error(
+      `Tabla: ${tabla}\n` +
+      `Mensaje: ${error.message}\n` +
+      `Código: ${error.code || "sin código"}\n` +
+      `Detalle: ${error.details || "sin detalle"}`
+    );
+  }
+}
     planesMes = resultadoPlanes.data || [];
     const idsPlanesPublicados = new Set(
       planesMes
@@ -576,6 +595,7 @@ async function cargarDatos(forzar = false) {
     ocultarAviso("avisoGeneral");
   } catch (error) {
     console.error("Error cargando calendario:", error);
+    alert(error.message || String(error)); 
     cambiarEstadoConexion("Error al actualizar");
     mostrarAviso(
       "avisoGeneral",
