@@ -1577,27 +1577,28 @@ function imprimirCalendario() {
       p => p.birth_date.slice(5, 10) === fecha.slice(5)
     );
 
-    const marcas = [
-      ...reunionesDia.map(r => `
-        <div class="reporte-marca">
-          ${r.cancelled
-            ? "<strong>No habrá reunión</strong>"
-            : "Reunión"}
-        </div>
-      `),
+    
+const marcas = [
+  ...reunionesDia.map(r => `
+    <div class="reporte-marca">
+      ${r.cancelled
+        ? "No habrá reunión"
+        : "Reunión"}
+    </div>
+  `),
 
-      ...eventosDia.map(e => `
-        <div class="reporte-marca">
-          ${escapar(e.title || "Evento")}
-        </div>
-      `),
+  ...eventosDia.map(e => `
+    <div class="reporte-marca">
+      ${escapar(e.title || "Evento")}
+    </div>
+  `),
 
-      ...cumpleanosDia.map(p => `
-        <div class="reporte-marca reporte-marca-cumple">
-          ${escapar(p.full_name)}
-        </div>
-      `)
-    ].join("");
+  ...cumpleanosDia.map(p => `
+    <div class="reporte-marca reporte-marca-cumple">
+      Cumpleaños de ${escapar(p.full_name)}
+    </div>
+  `)
+].join("");
 
     celdas.push(`
       <div class="reporte-celda">
