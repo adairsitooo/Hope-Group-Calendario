@@ -1208,14 +1208,14 @@ async function guardarNuevaReunion(evento) {
     await cargarDatos(true);
     await mostrarGestionReuniones();
     mostrarAviso("avisoGeneral", "Reunión guardada.", "exito");
-  } catch (error) {
-    console.error(error);
-    mostrarAviso(
-      "avisoGeneral",
-      "No se pudo guardar la reunión. Comprueba que no exista otra reunión en esa fecha.",
-      "error"
-    );
-  }
+} catch (error) {
+  console.error("Error al guardar reunión:", error);
+  mostrarAviso(
+    "avisoGeneral",
+    error.message || "Error desconocido al guardar la reunión.",
+    "error"
+  );
+}
 }
 
 async function editarReunion(reunion) {
