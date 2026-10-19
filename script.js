@@ -1,3 +1,4 @@
+
 /* =========================================================
    HOPE GROUP — script.js
    Calendario, cumpleaños, reuniones, eventos y accesos.
