@@ -1,5 +1,3 @@
-
-
 /* =========================================================
    HOPE GROUP — script.js
    Versión local: sin Supabase ni inicio de sesión.
@@ -252,7 +250,7 @@ function imprimirCalendario() {
     const marcas=[
       ...reunionesMes.filter(x=>x.fecha===fecha).map(x=>`<div class="reporte-marca reporte-marca-reunion">Reunión${x.cancelada?" — Cancelada":""}</div>`),
       ...gruposMes.filter(x=>x.fecha===fecha).map(x=>`<div class="reporte-marca reporte-marca-grupo">${escaparHTML(x.titulo)}</div>`),
-      ...eventosMes.filter(x=>x.fecha===fecha).map(x=>`<div class="reporte-marca">${escaparHTML(x.titulo)}</div>`),
+      ...eventosMes.filter(x=>x.fecha===fecha).map(x=>`<div class="reporte-marca reporte-marca-evento">${escaparHTML(x.titulo)}</div>`),
       ...cumpleMes.filter(x=>x.fecha.slice(5,10)===fecha.slice(5)).map(x=>`<div class="reporte-marca reporte-marca-cumple">Cumpleaños: ${escaparHTML(x.nombre)}</div>`)
     ].join("");
     celdas.push(`<div class="reporte-celda"><span class="reporte-numero-dia">${dia}</span><div class="reporte-marcas">${marcas}</div></div>`);
@@ -276,5 +274,5 @@ zona.hidden=false;document.body.classList.add("imprimiendo-calendario");
   const limpiar=()=>{zona.hidden=true;document.body.classList.remove("imprimiendo-calendario");window.removeEventListener("afterprint",limpiar);};
   window.addEventListener("afterprint",limpiar,{once:true});
   const imgs=[...zona.querySelectorAll("img")];Promise.all(imgs.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener("load",resolve,{once:true});img.addEventListener("error",resolve,{once:true});}))).then(()=>setTimeout(()=>window.print(),100));
-}
+
 
