@@ -18,6 +18,7 @@ let reuniones = [];
 let cumpleanos = [];
 let eventos = [];
 let planesMes = [];
+const temporizadoresAviso = new Map();
 
 const elemento = id => document.getElementById(id);
 const escuchar = (id, tipo, callback) =>
@@ -157,9 +158,9 @@ function configurarEventos() {
   escuchar("selectorAnio", "change", cambiarPeriodo);
   escuchar("btnImprimir", "click", imprimirCalendario);
 
-  escuchar("btnGestionarCumpleanos", "click", mostrarGestionCumpleanos);
-  escuchar("btnGestionarReuniones", "click", mostrarGestionReuniones);
-  escuchar("btnGestionarEventos", "click", mostrarGestionEventos);
+  escuchar("btnGestionarCumpleanos", "click", () => mostrarGestionCumpleanos());
+  escuchar("btnGestionarReuniones", "click", () => mostrarGestionReuniones());
+  escuchar("btnGestionarEventos", "click", () => mostrarGestionEventos());
   escuchar("btnExportar", "click", exportarCumpleanosCSV);
   escuchar("btnGestionarDocumento", "click", mostrarAvisoDocumentos);
 }
@@ -252,9 +253,18 @@ function mostrarAviso(id, mensaje, tipo = "info") {
   const nodo = elemento(id);
   if (!nodo) return;
 
+  clearTimeout(temporizadoresAviso.get(id));
+  temporizadoresAviso.delete(id);
   nodo.textContent = mensaje;
   nodo.className = `aviso aviso-${tipo}`;
   nodo.hidden = false;
+
+  if (tipo === "exito" || tipo === "info") {
+    temporizadoresAviso.set(id, setTimeout(() => {
+      ocultarAviso(id);
+      temporizadoresAviso.delete(id);
+    }, 4000));
+  }
 }
 
 function ocultarAviso(id) {
@@ -358,6 +368,7 @@ function renderizarCalendario() {
   const mes = fechaSeleccionada.getMonth();
   const inicio = obtenerDiaSemana(new Date(anio, mes, 1));
   const total = new Date(anio, mes + 1, 0).getDate();
+  const hoy = fechaISO(new Date());
 
   const seleccionada = seleccionadaAnterior?.slice(0, 7) ===
     fechaISO(fechaSeleccionada).slice(0, 7)
@@ -380,6 +391,10 @@ function renderizarCalendario() {
     celda.setAttribute("aria-label", `${numero} de ${MESES[mes]} de ${anio}`);
 
     if (fecha === seleccionada) celda.classList.add("seleccionado");
+    if (fecha === hoy) {
+      celda.classList.add("hoy");
+      celda.setAttribute("aria-current", "date");
+    }
 
     const numeroDia = document.createElement("span");
     numeroDia.className = "numero-dia";
@@ -602,7 +617,7 @@ function fechaLimitesMes() {
 
 /* Cumpleaños */
 
-function mostrarGestionCumpleanos() {
+function mostrarGestionCumpleanos(enEdicion = null) {
   const contenedor = limpiarAdmin("Administrar cumpleaños");
   if (!contenedor) return;
 
@@ -613,27 +628,39 @@ function mostrarGestionCumpleanos() {
     campoHTML("cumpleNombre", "Nombre completo", "text", 'maxlength="120"') +
     campoHTML("cumpleFecha", "Fecha de nacimiento", "date") +
     `<div class="campo"><label for="cumpleTelefono">Teléfono (opcional)</label><input id="cumpleTelefono" type="tel" maxlength="25"></div>
-    <button class="boton boton-principal" type="submit">Agregar cumpleaños</button>`;
+    <button class="boton boton-principal" type="submit">${enEdicion ? "Guardar cambios" : "Agregar cumpleaños"}</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionCumple" class="boton boton-secundario" type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#cumpleNombre").value = enEdicion.nombre;
+    formulario.querySelector("#cumpleFecha").value = enEdicion.fecha;
+    formulario.querySelector("#cumpleTelefono").value = enEdicion.telefono || "";
+    formulario.querySelector("#cancelarEdicionCumple")
+      .addEventListener("click", () => mostrarGestionCumpleanos());
+  }
 
   formulario.addEventListener("submit", e => {
     e.preventDefault();
 
     const nombre = elemento("cumpleNombre").value.trim();
     const fecha = elemento("cumpleFecha").value;
+    const telefono = elemento("cumpleTelefono").value.trim();
 
-    if (!nombre || !fecha) return;
+    if (!nombre || !validarFecha(fecha)) {
+      mostrarAviso("avisoGeneral", "Revisa el nombre y la fecha.", "error");
+      return;
+    }
 
-    cumpleanos.push({
-      id: idNuevo(),
-      nombre,
-      fecha,
-      telefono: elemento("cumpleTelefono").value.trim()
-    });
+    const datos = { nombre, fecha, telefono };
+    if (enEdicion) Object.assign(enEdicion, datos);
+    else cumpleanos.push({ id: idNuevo(), ...datos });
 
     guardarLocalStorage();
     renderizarTodo();
     mostrarGestionCumpleanos();
-    mostrarAviso("avisoGeneral", "Cumpleaños agregado.", "exito");
+    mostrarAviso("avisoGeneral", enEdicion ? "Cumpleaños actualizado." : "Cumpleaños agregado.", "exito");
   });
 
   contenedor.appendChild(formulario);
@@ -642,25 +669,7 @@ function mostrarGestionCumpleanos() {
     contenedor,
     cumpleanos.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
     x => `<strong>${escaparHTML(x.nombre)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
-    x => {
-      const nombre = prompt("Nombre completo:", x.nombre);
-      if (nombre === null) return;
-
-      const fecha = prompt("Fecha (AAAA-MM-DD):", x.fecha);
-      if (fecha === null) return;
-
-      if (!nombre.trim() || !validarFecha(fecha)) {
-        mostrarAviso("avisoGeneral", "Revisa el nombre y la fecha.", "error");
-        return;
-      }
-
-      x.nombre = nombre.trim();
-      x.fecha = fecha;
-
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionCumpleanos();
-    },
+    x => mostrarGestionCumpleanos(x),
     x => {
       if (!confirm(`¿Eliminar el cumpleaños de ${x.nombre}?`)) return;
 
@@ -670,11 +679,16 @@ function mostrarGestionCumpleanos() {
       mostrarGestionCumpleanos();
     }
   );
+
+  if (enEdicion) {
+    formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+    formulario.querySelector("#cumpleNombre").focus({ preventScroll: true });
+  }
 }
 
 /* Reuniones: incluye las actividades antiguas de grupos */
 
-function mostrarGestionReuniones() {
+function mostrarGestionReuniones(enEdicion = null) {
   const contenedor = limpiarAdmin("Administrar reuniones");
   if (!contenedor) return;
 
@@ -688,7 +702,20 @@ function mostrarGestionReuniones() {
     `<div class="campo"><label for="reunionPredicador">Predicador (opcional)</label><input id="reunionPredicador" maxlength="120"></div>
     <div class="campo"><label for="reunionRefaccion">Responsable de refacción (opcional)</label><input id="reunionRefaccion" maxlength="120"></div>
     <div class="campo campo-checkbox"><label><input id="reunionCancelada" type="checkbox"> No habrá reunión</label></div>
-    <button class="boton boton-principal" type="submit">Agregar reunión</button>`;
+    <button class="boton boton-principal" type="submit">${enEdicion ? "Guardar cambios" : "Agregar reunión"}</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionReunion" class="boton boton-secundario" type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#reunionTitulo").value = enEdicion.titulo || "";
+    formulario.querySelector("#reunionFecha").value = enEdicion.fecha;
+    formulario.querySelector("#reunionPredicador").value = enEdicion.predicador || "";
+    formulario.querySelector("#reunionRefaccion").value = enEdicion.refaccion || "";
+    formulario.querySelector("#reunionCancelada").checked = enEdicion.cancelada;
+    formulario.querySelector("#cancelarEdicionReunion")
+      .addEventListener("click", () => mostrarGestionReuniones());
+  }
 
   formulario.addEventListener("submit", e => {
     e.preventDefault();
@@ -696,21 +723,25 @@ function mostrarGestionReuniones() {
     const fecha = elemento("reunionFecha").value;
     const titulo = elemento("reunionTitulo").value.trim();
 
-    if (!fecha) return;
+    if (!validarFecha(fecha)) {
+      mostrarAviso("avisoGeneral", "Revisa la fecha.", "error");
+      return;
+    }
 
     if (!fecha.startsWith(limites.min.slice(0, 7))) {
       mostrarAviso("avisoGeneral", "La reunión debe pertenecer al mes seleccionado.", "error");
       return;
     }
 
-    reuniones.push({
-      id: idNuevo(),
+    const datos = {
       fecha,
       titulo,
       predicador: elemento("reunionPredicador").value.trim(),
       refaccion: elemento("reunionRefaccion").value.trim(),
       cancelada: elemento("reunionCancelada").checked
-    });
+    };
+    if (enEdicion) Object.assign(enEdicion, datos);
+    else reuniones.push({ id: idNuevo(), ...datos });
 
     guardarLocalStorage();
     renderizarTodo();
@@ -727,41 +758,7 @@ function mostrarGestionReuniones() {
       `<strong>${escaparHTML(formatoFecha(x.fecha))} — ${escaparHTML(tituloReunion(x))}</strong>
       <p>${x.cancelada ? "Reunión cancelada" : `Predicador: ${escaparHTML(x.predicador || "Por asignar")}`}</p>
       ${x.cancelada ? "" : `<p>Refacción: ${escaparHTML(x.refaccion || "Por asignar")}</p>`}`,
-    x => {
-      const titulo = prompt("Nombre de la reunión o actividad:", x.titulo || "");
-      if (titulo === null) return;
-
-      const fecha = prompt("Fecha (AAAA-MM-DD):", x.fecha);
-      if (fecha === null) return;
-
-      if (!validarFecha(fecha)) {
-        mostrarAviso("avisoGeneral", "Revisa la fecha.", "error");
-        return;
-      }
-
-      if (!fecha.startsWith(limites.min.slice(0, 7))) {
-        mostrarAviso("avisoGeneral", "La reunión debe pertenecer al mes seleccionado.", "error");
-        return;
-      }
-
-      const predicador = prompt("Predicador:", x.predicador || "");
-      if (predicador === null) return;
-
-      const refaccion = prompt("Responsable de refacción:", x.refaccion || "");
-      if (refaccion === null) return;
-
-      x.titulo = titulo.trim();
-      x.fecha = fecha;
-      x.predicador = predicador.trim();
-      x.refaccion = refaccion.trim();
-      if (confirm(`La reunión está ${x.cancelada ? "cancelada" : "activa"}. ¿Cambiarla a ${x.cancelada ? "activa" : "cancelada"}?`)) {
-        x.cancelada = !x.cancelada;
-      }
-
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionReuniones();
-    },
+    x => mostrarGestionReuniones(x),
     x => {
       if (!confirm(`¿Eliminar "${tituloReunion(x)}" del ${formatoFecha(x.fecha)}?`)) return;
 
@@ -771,11 +768,16 @@ function mostrarGestionReuniones() {
       mostrarGestionReuniones();
     }
   );
+
+  if (enEdicion) {
+    formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+    formulario.querySelector("#reunionTitulo").focus({ preventScroll: true });
+  }
 }
 
 /* Eventos */
 
-function mostrarGestionEventos() {
+function mostrarGestionEventos(enEdicion = null) {
   const contenedor = limpiarAdmin("Administrar eventos");
   if (!contenedor) return;
 
@@ -786,7 +788,17 @@ function mostrarGestionEventos() {
   formulario.innerHTML =
     campoHTML("eventoTitulo", "Nombre del evento", "text", 'maxlength="160"') +
     campoHTML("eventoFecha", "Fecha", "date", `min="${limites.min}" max="${limites.max}"`) +
-    `<button class="boton boton-principal" type="submit">Agregar evento</button>`;
+    `<button class="boton boton-principal" type="submit">${enEdicion ? "Guardar cambios" : "Agregar evento"}</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionEvento" class="boton boton-secundario" type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#eventoTitulo").value = enEdicion.titulo;
+    formulario.querySelector("#eventoFecha").value = enEdicion.fecha;
+    formulario.querySelector("#cancelarEdicionEvento")
+      .addEventListener("click", () => mostrarGestionEventos());
+  }
 
   formulario.addEventListener("submit", e => {
     e.preventDefault();
@@ -794,14 +806,18 @@ function mostrarGestionEventos() {
     const titulo = elemento("eventoTitulo").value.trim();
     const fecha = elemento("eventoFecha").value;
 
-    if (!titulo || !fecha) return;
+    if (!titulo || !validarFecha(fecha)) {
+      mostrarAviso("avisoGeneral", "El nombre y la fecha son obligatorios.", "error");
+      return;
+    }
 
     if (!fecha.startsWith(limites.min.slice(0, 7))) {
       mostrarAviso("avisoGeneral", "El evento debe pertenecer al mes seleccionado.", "error");
       return;
     }
 
-    eventos.push({ id: idNuevo(), titulo, fecha });
+    if (enEdicion) Object.assign(enEdicion, { titulo, fecha });
+    else eventos.push({ id: idNuevo(), titulo, fecha });
 
     guardarLocalStorage();
     renderizarTodo();
@@ -815,30 +831,7 @@ function mostrarGestionEventos() {
     contenedor,
     eventos.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
     x => `<strong>${escaparHTML(x.titulo)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
-    x => {
-      const titulo = prompt("Nombre del evento:", x.titulo);
-      if (titulo === null) return;
-
-      const fecha = prompt("Fecha (AAAA-MM-DD):", x.fecha);
-      if (fecha === null) return;
-
-      if (!titulo.trim() || !validarFecha(fecha)) {
-        mostrarAviso("avisoGeneral", "El nombre y la fecha son obligatorios.", "error");
-        return;
-      }
-
-      if (!fecha.startsWith(limites.min.slice(0, 7))) {
-        mostrarAviso("avisoGeneral", "El evento debe pertenecer al mes seleccionado.", "error");
-        return;
-      }
-
-      x.titulo = titulo.trim();
-      x.fecha = fecha;
-
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionEventos();
-    },
+    x => mostrarGestionEventos(x),
     x => {
       if (!confirm(`¿Eliminar el evento "${x.titulo}"?`)) return;
 
@@ -848,6 +841,11 @@ function mostrarGestionEventos() {
       mostrarGestionEventos();
     }
   );
+
+  if (enEdicion) {
+    formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+    formulario.querySelector("#eventoTitulo").focus({ preventScroll: true });
+  }
 }
 
 function validarFecha(fecha) {

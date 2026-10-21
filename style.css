@@ -443,6 +443,13 @@ img {
   font-weight: 680;
   line-height: 1.2;
 }
+.dia.hoy .numero-dia {
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: var(--primario);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
 .marcas-dia {
   display: flex;
   flex-wrap: wrap;
