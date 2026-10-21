@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ffffff">
   <meta
     name="description"
-    content="Calendario de Hope Group: reuniones, grupos, eventos y cumpleaños."
+    content="Calendario de Hope Group: reuniones, eventos y cumpleaños."
   >
   <title>Hope Calendar | Hope Group</title>
   <link rel="stylesheet" href="style.css">
@@ -30,19 +30,22 @@
       </a>
     </div>
   </header>
+
   <main class="contenedor-principal">
     <section class="introduccion">
       <p class="texto-superior">ORGANIZACIÓN DEL GRUPO</p>
       <h1>Calendario mensual</h1>
       <p class="descripcion-principal">
-        Organiza las reuniones, los grupos, los eventos y los cumpleaños
+        Organiza las reuniones, los eventos y los cumpleaños
         de Hope Group desde un solo lugar.
       </p>
     </section>
+
     <div id="estadoConexion" class="estado-conexion" role="status">
       <span class="indicador-conexion" aria-hidden="true"></span>
       <span>Guardado localmente</span>
     </div>
+
     <div
       id="avisoGeneral"
       class="aviso"
@@ -50,6 +53,7 @@
       aria-live="polite"
       hidden
     ></div>
+
     <section class="rejilla-principal">
       <div class="columna-calendario">
         <section class="tarjeta tarjeta-calendario">
@@ -60,6 +64,7 @@
             </div>
             <span class="icono-tarjeta" aria-hidden="true">▦</span>
           </div>
+
           <div class="selector-periodo">
             <div class="campo campo-periodo">
               <label for="selectorMes">Mes</label>
@@ -78,11 +83,13 @@
                 <option value="11">Diciembre</option>
               </select>
             </div>
+
             <div class="campo campo-periodo">
               <label for="selectorAnio">Año</label>
               <select id="selectorAnio" name="anio"></select>
             </div>
           </div>
+
           <div class="navegacion-mes">
             <button
               id="mesAnterior"
@@ -90,7 +97,9 @@
               type="button"
               aria-label="Mes anterior"
             >‹</button>
+
             <h3 id="mesActual" aria-live="polite">Calendario mensual</h3>
+
             <button
               id="mesSiguiente"
               class="boton boton-secundario"
@@ -98,30 +107,31 @@
               aria-label="Mes siguiente"
             >›</button>
           </div>
+
           <div
             id="calendario"
             class="calendario"
             role="grid"
             aria-label="Calendario mensual"
           ></div>
+
           <div class="leyenda-calendario" aria-label="Leyenda">
             <span class="leyenda-item">
               <span class="leyenda-punto punto-reunion" aria-hidden="true"></span>
               Reuniones
             </span>
-            <span class="leyenda-item">
-              <span class="leyenda-punto punto-grupo" aria-hidden="true"></span>
-              Grupos
-            </span>
+
             <span class="leyenda-item">
               <span class="leyenda-punto punto-cumple" aria-hidden="true"></span>
               Cumpleaños
             </span>
+
             <span class="leyenda-item">
               <span class="leyenda-punto punto-evento" aria-hidden="true"></span>
               Eventos
             </span>
           </div>
+
           <section class="detalle-dia">
             <div class="encabezado-tarjeta">
               <div>
@@ -129,13 +139,16 @@
                 <h3 id="tituloDetalle">Selecciona una fecha</h3>
               </div>
             </div>
+
             <div id="detalleDia" aria-live="polite">
               <p class="texto-secundario">
                 Selecciona un día para consultar sus actividades.
               </p>
             </div>
           </section>
+
           <div class="separador"></div>
+
           <button
             id="btnImprimir"
             class="boton boton-principal ancho-completo"
@@ -143,11 +156,13 @@
           >
             Generar PDF del calendario del mes
           </button>
+
           <p class="texto-secundario">
-            El documento mensual incluirá los cumpleaños, las reuniones,
-            los grupos y los eventos del mes seleccionado.
+            El documento mensual incluirá todos los cumpleaños,
+            las reuniones y los eventos del mes seleccionado.
           </p>
         </section>
+
         <section class="tarjeta tarjeta-cumpleanos">
           <div class="encabezado-tarjeta">
             <div>
@@ -156,6 +171,7 @@
             </div>
             <span class="icono-tarjeta" aria-hidden="true">♡</span>
           </div>
+
           <div
             id="cumpleanosMes"
             class="lista-cumpleanos"
@@ -165,51 +181,50 @@
           </div>
         </section>
       </div>
+
       <aside class="columna-lateral">
         <section id="panelLider" class="tarjeta tarjeta-panel-lider">
           <p class="texto-superior">ADMINISTRACIÓN</p>
           <h2>Gestionar calendario</h2>
+
           <p class="texto-secundario">
             Administra las fechas y las actividades de Hope Group.
           </p>
+
           <div class="acciones-lider">
-            <button
-              id="btnActualizar"
-              class="boton boton-secundario ancho-completo"
-              type="button"
-            >Actualizar información</button>
             <button
               id="btnGestionarCumpleanos"
               class="boton boton-secundario ancho-completo"
               type="button"
             >Gestionar cumpleaños</button>
+
             <button
               id="btnGestionarReuniones"
               class="boton boton-secundario ancho-completo"
               type="button"
             >Gestionar reuniones</button>
-            <button
-              id="btnGestionarGrupos"
-              class="boton boton-secundario ancho-completo"
-              type="button"
-            >Gestionar grupos</button>
+
             <button
               id="btnGestionarEventos"
               class="boton boton-secundario ancho-completo"
               type="button"
             >Gestionar eventos</button>
+
             <button
               id="btnExportar"
               class="boton boton-secundario ancho-completo"
               type="button"
             >Exportar cumpleaños CSV</button>
+
             <button
               id="btnGestionarDocumento"
               class="boton boton-secundario ancho-completo"
               type="button"
             >Documentos oficiales</button>
           </div>
+
           <div class="separador"></div>
+
           <div
             id="contenidoAdministracion"
             class="contenido-administracion"
@@ -219,21 +234,25 @@
       </aside>
     </section>
   </main>
+
   <section
     id="zonaImpresion"
     hidden
     aria-label="Calendario mensual imprimible"
   ></section>
+
   <footer class="pie-pagina">
     <div class="pie-contenido">
       <div>
         <span class="nombre-pie">Hope Group</span>
         <p>Organización, servicio y unidad.</p>
       </div>
+
       <div class="texto-pie">
         <p>Hope Calendar</p>
       </div>
     </div>
+
     <div class="copyright">
       <p>
         © <span id="anioActual"></span> Hope Group.
@@ -241,10 +260,12 @@
       </p>
     </div>
   </footer>
+
   <script>
     document.getElementById("anioActual").textContent =
       new Date().getFullYear();
   </script>
 </body>
 </html>
+
 
