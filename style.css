@@ -1,3 +1,4 @@
+
 /* =========================================================
    HOPE GROUP — style.css
    Diseño adaptable, paneles, calendario y documento mensual.
@@ -12,9 +13,9 @@
   --borde-fuerte: #d1d5db;
   --primario: #252525;
   --primario-hover: #414141;
-  --reunion: #343a40;
-  --cumple: #a0a6ad;
-  --evento: #747d88;
+  --reunion: #2563eb;
+  --cumple: #eab308;
+  --evento: #16a34a;
   --exito: #216e48;
   --error: #a12b2b;
   --informacion: #454d57;
@@ -453,20 +454,24 @@ img {
 }
 .marca-reunion,
 .marca-cumple,
-.marca-evento {
+.marca-evento,
+.marca-grupo {
   width: 6px;
   height: 6px;
   display: inline-block;
   border-radius: 50%;
 }
 .marca-reunion {
-  background: var(--reunion);
+  background: #2563eb;
 }
 .marca-cumple {
-  background: var(--cumple);
+  background: #eab308;
 }
 .marca-evento {
-  background: var(--evento);
+  background: #16a34a;
+}
+.marca-grupo {
+  background: #343a40;
 }
 .leyenda-calendario {
   display: flex;
@@ -489,13 +494,16 @@ img {
   border-radius: 50%;
 }
 .punto-reunion {
-  background: var(--reunion);
+  background: #2563eb;
 }
 .punto-cumple {
-  background: var(--cumple);
+  background: #eab308;
 }
 .punto-evento {
-  background: var(--evento);
+  background: #16a34a;
+}
+.punto-grupo {
+  background: #343a40;
 }
 /* 9. DETALLE DE ACTIVIDADES */
 .detalle-dia {
@@ -527,13 +535,16 @@ img {
   font-size: 12px;
 }
 .detalle-reunion {
-  border-left-color: var(--reunion);
+  border-left-color: #2563eb;
 }
 .detalle-cumple {
-  border-left-color: var(--cumple);
+  border-left-color: #eab308;
 }
 .detalle-evento {
-  border-left-color: var(--evento);
+  border-left-color: #16a34a;
+}
+.detalle-grupo {
+  border-left-color: #343a40;
 }
 /* 10. CUMPLEAÑOS */
 .lista-cumpleanos {
@@ -1292,32 +1303,12 @@ img {
   }
 }
 
-
-.marca-discipulado {
-  background-color: #d8b4fe;
-  border-radius: 999px;
-}
-
-
-.detalle-discipulado {
-  border-left: 4px solid #a855f7;
-}
-
-
 .reporte-marca-grupo {
   background-color: #dbeafe;
   color: #1d4ed8;
   border-radius: 4px;
   padding: 2px 4px;
 }
-
-.reporte-marca-discipulado {
-  background-color: #f3e8ff;
-  color: #7e22ce;
-  border-radius: 4px;
-  padding: 2px 4px;
-}
-
 
 /* =========================================================
    CORRECCIONES PARA EL CALENDARIO LOCAL Y EL PDF
@@ -1412,3 +1403,18 @@ img {
   }
 }
 
+.reporte-marca-reunion {
+  color: #2563eb;
+}
+
+.reporte-marca-grupo {
+  color: #343a40;
+}
+
+.reporte-marca-cumple {
+  color: #b08900;
+}
+
+.reporte-marca-evento {
+  color: #16a34a;
+}
