@@ -9,6 +9,25 @@
     content="Calendario de Hope Group: reuniones, eventos y cumpleaños."
   >
   <title>Hope Calendar | Hope Group</title>
+  <script>
+    (() => {
+      let tema = null;
+      try {
+        tema = localStorage.getItem("hopeCalendarTema");
+      } catch (error) {
+        tema = null;
+      }
+
+      if (tema === "light" || tema === "dark") {
+        document.documentElement.dataset.theme = tema;
+      }
+
+      const oscuro = tema === "dark" ||
+        (tema !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.querySelector("meta[name=\"theme-color\"]").content =
+        oscuro ? "#1b2025" : "#ffffff";
+    })();
+  </script>
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
@@ -28,6 +47,15 @@
           <span class="subtitulo-grupo">Hope Calendar</span>
         </span>
       </a>
+      <button
+        id="btnTema"
+        class="boton boton-secundario boton-tema"
+        type="button"
+        aria-label="Activar modo oscuro"
+      >
+        <span class="icono-tema" aria-hidden="true">☾</span>
+        <span class="texto-tema">Modo oscuro</span>
+      </button>
     </div>
   </header>
 

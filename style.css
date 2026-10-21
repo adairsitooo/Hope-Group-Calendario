@@ -4,6 +4,7 @@
    ========================================================= */
 /* 1. VARIABLES Y REINICIO */
 :root {
+  color-scheme: light;
   --fondo: #f6f7f8;
   --superficie: #ffffff;
   --texto: #202124;
@@ -12,16 +13,174 @@
   --borde-fuerte: #d1d5db;
   --primario: #252525;
   --primario-hover: #414141;
+  --texto-en-primario: #ffffff;
   --reunion: #2563eb;
   --cumple: #eab308;
   --evento: #16a34a;
+  --grupo: #343a40;
   --exito: #216e48;
   --error: #a12b2b;
   --informacion: #454d57;
+  --encabezado-fondo: rgba(255, 255, 255, 0.96);
+  --enfoque: rgba(70, 80, 90, 0.3);
+  --indicador: #8c949d;
+  --icono-fondo: #f1f2f3;
+  --superficie-alterna: #fafafa;
+  --superficie-suave: #f5f6f7;
+  --boton-secundario-hover: #f3f4f5;
+  --boton-secundario-borde-hover: #b8bdc4;
+  --acceso-borde-hover: #aeb4bb;
+  --boton-borde-borde: #d8dadd;
+  --boton-borde-texto: #555b62;
+  --boton-borde-hover: #f6f6f6;
+  --boton-borde-borde-hover: #b7bcc2;
+  --campo-etiqueta: #45494e;
+  --campo-placeholder: #92979d;
+  --campo-borde-foco: #777f88;
+  --dia-borde: #eceef0;
+  --dia-hover-borde: #c9cdd2;
+  --dia-seleccionado: #f0f1f2;
+  --dia-seleccionado-borde: #383c40;
+  --detalle-borde: #858b92;
+  --cumple-fecha-fondo: #eeeeef;
+  --tarjeta-info-fondo: #252525;
+  --tarjeta-info-texto: #ffffff;
+  --tarjeta-info-superior: #c3c5c8;
+  --tarjeta-info-cuerpo: #d1d3d6;
+  --decorativo-uno: #d5d6d8;
+  --decorativo-dos: #9ea2a7;
+  --decorativo-tres: #777d84;
+  --correo-texto: #565b61;
+  --aviso-fondo: #f7f7f7;
+  --aviso-texto: #45494e;
+  --aviso-exito-fondo: #f0f7f2;
+  --aviso-exito-borde: #c9e4d2;
+  --aviso-error-fondo: #fcf2f2;
+  --aviso-error-borde: #efcccc;
+  --aviso-info-fondo: #f2f4f6;
+  --aviso-info-borde: #dce0e5;
   --radio: 16px;
   --radio-pequeno: 10px;
   --sombra: 0 4px 20px rgba(20, 25, 30, 0.045);
   --ancho-maximo: 1200px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --fondo: #111417;
+    --superficie: #1b2025;
+    --texto: #eef1f4;
+    --texto-secundario: #b6bec7;
+    --borde: #343c44;
+    --borde-fuerte: #56616c;
+    --primario: #eef1f4;
+    --primario-hover: #d8dee4;
+    --texto-en-primario: #171b1f;
+    --reunion: #82b1ff;
+    --cumple: #f5cc4b;
+    --evento: #57d88b;
+    --grupo: #b7c3cf;
+    --exito: #9de6b7;
+    --error: #ffaaaa;
+    --informacion: #bbdcf5;
+    --encabezado-fondo: rgba(27, 32, 37, 0.96);
+    --enfoque: rgba(174, 205, 255, 0.55);
+    --indicador: #aab6c2;
+    --icono-fondo: #2c343c;
+    --superficie-alterna: #242b32;
+    --superficie-suave: #2a323a;
+    --boton-secundario-hover: #303941;
+    --boton-secundario-borde-hover: #84919e;
+    --acceso-borde-hover: #84919e;
+    --boton-borde-borde: #56616c;
+    --boton-borde-texto: #dbe1e7;
+    --boton-borde-hover: #303941;
+    --boton-borde-borde-hover: #84919e;
+    --campo-etiqueta: #d2d8de;
+    --campo-placeholder: #a3adb8;
+    --campo-borde-foco: #a9c7ed;
+    --dia-borde: #3b454f;
+    --dia-hover-borde: #738190;
+    --dia-seleccionado: #303c48;
+    --dia-seleccionado-borde: #bac7d4;
+    --detalle-borde: #9caab8;
+    --cumple-fecha-fondo: #39434d;
+    --tarjeta-info-fondo: #2a333d;
+    --tarjeta-info-texto: #f2f5f7;
+    --tarjeta-info-superior: #c9d4df;
+    --tarjeta-info-cuerpo: #d8e0e8;
+    --decorativo-uno: #8292a2;
+    --decorativo-dos: #a4b2c0;
+    --decorativo-tres: #c3cbd3;
+    --correo-texto: #c5ced7;
+    --aviso-fondo: #242b32;
+    --aviso-texto: #d5dce3;
+    --aviso-exito-fondo: #183629;
+    --aviso-exito-borde: #38694f;
+    --aviso-error-fondo: #3b2226;
+    --aviso-error-borde: #805057;
+    --aviso-info-fondo: #1d3448;
+    --aviso-info-borde: #476883;
+    --sombra: 0 4px 20px rgba(0, 0, 0, 0.16);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --fondo: #111417;
+  --superficie: #1b2025;
+  --texto: #eef1f4;
+  --texto-secundario: #b6bec7;
+  --borde: #343c44;
+  --borde-fuerte: #56616c;
+  --primario: #eef1f4;
+  --primario-hover: #d8dee4;
+  --texto-en-primario: #171b1f;
+  --reunion: #82b1ff;
+  --cumple: #f5cc4b;
+  --evento: #57d88b;
+  --grupo: #b7c3cf;
+  --exito: #9de6b7;
+  --error: #ffaaaa;
+  --informacion: #bbdcf5;
+  --encabezado-fondo: rgba(27, 32, 37, 0.96);
+  --enfoque: rgba(174, 205, 255, 0.55);
+  --indicador: #aab6c2;
+  --icono-fondo: #2c343c;
+  --superficie-alterna: #242b32;
+  --superficie-suave: #2a323a;
+  --boton-secundario-hover: #303941;
+  --boton-secundario-borde-hover: #84919e;
+  --acceso-borde-hover: #84919e;
+  --boton-borde-borde: #56616c;
+  --boton-borde-texto: #dbe1e7;
+  --boton-borde-hover: #303941;
+  --boton-borde-borde-hover: #84919e;
+  --campo-etiqueta: #d2d8de;
+  --campo-placeholder: #a3adb8;
+  --campo-borde-foco: #a9c7ed;
+  --dia-borde: #3b454f;
+  --dia-hover-borde: #738190;
+  --dia-seleccionado: #303c48;
+  --dia-seleccionado-borde: #bac7d4;
+  --detalle-borde: #9caab8;
+  --cumple-fecha-fondo: #39434d;
+  --tarjeta-info-fondo: #2a333d;
+  --tarjeta-info-texto: #f2f5f7;
+  --tarjeta-info-superior: #c9d4df;
+  --tarjeta-info-cuerpo: #d8e0e8;
+  --decorativo-uno: #8292a2;
+  --decorativo-dos: #a4b2c0;
+  --decorativo-tres: #c3cbd3;
+  --correo-texto: #c5ced7;
+  --aviso-fondo: #242b32;
+  --aviso-texto: #d5dce3;
+  --aviso-exito-fondo: #183629;
+  --aviso-exito-borde: #38694f;
+  --aviso-error-fondo: #3b2226;
+  --aviso-error-borde: #805057;
+  --aviso-info-fondo: #1d3448;
+  --aviso-info-borde: #476883;
+  --sombra: 0 4px 20px rgba(0, 0, 0, 0.16);
 }
 * {
   box-sizing: border-box;
@@ -64,7 +223,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(70, 80, 90, 0.3);
+  outline: 3px solid var(--enfoque);
   outline-offset: 3px;
 }
 a {
@@ -77,7 +236,7 @@ img {
 .encabezado {
   position: relative;
   z-index: 5;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--encabezado-fondo);
   border-bottom: 1px solid var(--borde);
 }
 .encabezado-contenido {
@@ -108,7 +267,7 @@ img {
   display: grid;
   place-items: center;
   background: var(--primario);
-  color: white;
+  color: var(--texto-en-primario);
   border-radius: 10px;
   font-size: 16px;
   font-weight: 800;
@@ -141,7 +300,7 @@ img {
 }
 .acceso-lideres:hover {
   background: var(--fondo);
-  border-color: #aeb4bb;
+  border-color: var(--acceso-borde-hover);
 }
 /* 3. CONTENIDO PRINCIPAL */
 .contenedor-principal {
@@ -186,7 +345,7 @@ img {
   width: 7px;
   height: 7px;
   display: inline-block;
-  background: #8c949d;
+  background: var(--indicador);
   border-radius: 50%;
 }
 .rejilla-principal {
@@ -238,7 +397,7 @@ img {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  background: #f1f2f3;
+  background: var(--icono-fondo);
   border-radius: 11px;
   font-size: 23px;
   line-height: 1;
@@ -282,28 +441,37 @@ img {
 }
 .boton-principal {
   background: var(--primario);
-  color: #ffffff;
+  color: var(--texto-en-primario);
 }
 .boton-principal:hover:not(:disabled) {
   background: var(--primario-hover);
 }
 .boton-secundario {
-  background: #ffffff;
+  background: var(--superficie);
   border-color: var(--borde-fuerte);
   color: var(--texto);
 }
 .boton-secundario:hover:not(:disabled) {
-  background: #f3f4f5;
-  border-color: #b8bdc4;
+  background: var(--boton-secundario-hover);
+  border-color: var(--boton-secundario-borde-hover);
 }
 .boton-borde {
-  background: #ffffff;
-  border-color: #d8dadd;
-  color: #555b62;
+  background: var(--superficie);
+  border-color: var(--boton-borde-borde);
+  color: var(--boton-borde-texto);
 }
 .boton-borde:hover:not(:disabled) {
-  background: #f6f6f6;
-  border-color: #b7bcc2;
+  background: var(--boton-borde-hover);
+  border-color: var(--boton-borde-borde-hover);
+}
+.boton-tema {
+  flex: 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.icono-tema {
+  font-size: 18px;
+  line-height: 1;
 }
 .ancho-completo {
   width: 100%;
@@ -323,7 +491,7 @@ img {
   margin-bottom: 14px;
 }
 .campo label {
-  color: #45494e;
+  color: var(--campo-etiqueta);
   font-size: 12px;
   font-weight: 680;
 }
@@ -334,20 +502,20 @@ img {
   width: 100%;
   min-height: 43px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--superficie);
   color: var(--texto);
   border: 1px solid var(--borde-fuerte);
   border-radius: 8px;
 }
 .campo input::placeholder,
 .campo textarea::placeholder {
-  color: #92979d;
+  color: var(--campo-placeholder);
 }
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus,
 .selector-periodo select:focus {
-  border-color: #777f88;
+  border-color: var(--campo-borde-foco);
 }
 .campo textarea {
   min-height: 100px;
@@ -415,8 +583,8 @@ img {
   gap: 9px;
   padding: 10px 2px 7px;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #eceef0;
+  background: var(--superficie);
+  border: 1px solid var(--dia-borde);
   border-radius: 9px;
   cursor: pointer;
   transition:
@@ -424,13 +592,13 @@ img {
     border-color 0.15s ease;
 }
 .dia:hover:not(.dia-vacio) {
-  background: #f5f6f7;
-  border-color: #c9cdd2;
+  background: var(--superficie-suave);
+  border-color: var(--dia-hover-borde);
 }
 .dia.seleccionado {
-  background: #f0f1f2;
-  border-color: #383c40;
-  box-shadow: inset 0 0 0 1px #383c40;
+  background: var(--dia-seleccionado);
+  border-color: var(--dia-seleccionado-borde);
+  box-shadow: inset 0 0 0 1px var(--dia-seleccionado-borde);
 }
 .dia-vacio {
   min-height: 73px;
@@ -473,16 +641,16 @@ img {
   border-radius: 50%;
 }
 .marca-reunion {
-  background: #2563eb;
+  background: var(--reunion);
 }
 .marca-cumple {
-  background: #eab308;
+  background: var(--cumple);
 }
 .marca-evento {
-  background: #16a34a;
+  background: var(--evento);
 }
 .marca-grupo {
-  background: #343a40;
+  background: var(--grupo);
 }
 .leyenda-calendario {
   display: flex;
@@ -505,16 +673,16 @@ img {
   border-radius: 50%;
 }
 .punto-reunion {
-  background: #2563eb;
+  background: var(--reunion);
 }
 .punto-cumple {
-  background: #eab308;
+  background: var(--cumple);
 }
 .punto-evento {
-  background: #16a34a;
+  background: var(--evento);
 }
 .punto-grupo {
-  background: #343a40;
+  background: var(--grupo);
 }
 /* 9. DETALLE DE ACTIVIDADES */
 .detalle-dia {
@@ -530,9 +698,9 @@ img {
 }
 .detalle-actividad {
   padding: 13px 14px;
-  background: #fafafa;
+  background: var(--superficie-alterna);
   border: 1px solid var(--borde);
-  border-left: 3px solid #858b92;
+  border-left: 3px solid var(--detalle-borde);
   border-radius: 8px;
 }
 .detalle-actividad h4 {
@@ -546,16 +714,16 @@ img {
   font-size: 12px;
 }
 .detalle-reunion {
-  border-left-color: #2563eb;
+  border-left-color: var(--reunion);
 }
 .detalle-cumple {
-  border-left-color: #eab308;
+  border-left-color: var(--cumple);
 }
 .detalle-evento {
-  border-left-color: #16a34a;
+  border-left-color: var(--evento);
 }
 .detalle-grupo {
-  border-left-color: #343a40;
+  border-left-color: var(--grupo);
 }
 /* 10. CUMPLEAÑOS */
 .lista-cumpleanos {
@@ -568,8 +736,8 @@ img {
   align-items: center;
   gap: 12px;
   padding: 11px 12px;
-  background: #fafafa;
-  border: 1px solid #eceef0;
+  background: var(--superficie-alterna);
+  border: 1px solid var(--dia-borde);
   border-radius: 9px;
 }
 .cumple-fecha {
@@ -578,7 +746,7 @@ img {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  background: #eeeeef;
+  background: var(--cumple-fecha-fondo);
   border-radius: 9px;
   font-size: 13px;
   font-weight: 800;
@@ -600,12 +768,12 @@ img {
 .tarjeta-informacion {
   position: relative;
   overflow: hidden;
-  background: #252525;
-  border-color: #252525;
-  color: #ffffff;
+  background: var(--tarjeta-info-fondo);
+  border-color: var(--tarjeta-info-fondo);
+  color: var(--tarjeta-info-texto);
 }
 .tarjeta-informacion .texto-superior {
-  color: #c3c5c8;
+  color: var(--tarjeta-info-superior);
 }
 .tarjeta-informacion h2 {
   margin-bottom: 12px;
@@ -615,7 +783,7 @@ img {
 .tarjeta-informacion > p:not(.texto-superior) {
   max-width: 330px;
   margin: 0;
-  color: #d1d3d6;
+  color: var(--tarjeta-info-cuerpo);
   font-size: 13px;
 }
 .detalle-decorativo {
@@ -626,16 +794,16 @@ img {
 .detalle-decorativo span {
   width: 22px;
   height: 3px;
-  background: #d5d6d8;
+  background: var(--decorativo-uno);
   border-radius: 10px;
 }
 .detalle-decorativo span:nth-child(2) {
   width: 35px;
-  background: #9ea2a7;
+  background: var(--decorativo-dos);
 }
 .detalle-decorativo span:nth-child(3) {
   width: 13px;
-  background: #777d84;
+  background: var(--decorativo-tres);
 }
 /* 12. ACCESO Y PANELES */
 .tarjeta-panel-lider > h2 {
@@ -669,10 +837,10 @@ img {
   margin: 0 0 15px;
   padding: 9px 11px;
   overflow-wrap: anywhere;
-  background: #f5f6f7;
+  background: var(--superficie-suave);
   border: 1px solid var(--borde);
   border-radius: 8px;
-  color: #565b61;
+  color: var(--correo-texto);
   font-size: 12px;
 }
 .formulario {
@@ -706,7 +874,7 @@ img {
   padding: 13px;
   border: 1px solid var(--borde);
   border-radius: 9px;
-  background: #ffffff;
+  background: var(--superficie);
 }
 .fila-administracion > div:first-child {
   min-width: 0;
@@ -735,31 +903,31 @@ img {
   padding: 11px 13px;
   border: 1px solid var(--borde);
   border-radius: 9px;
-  background: #f7f7f7;
-  color: #45494e;
+  background: var(--aviso-fondo);
+  color: var(--aviso-texto);
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .aviso-exito {
-  background: #f0f7f2;
-  border-color: #c9e4d2;
+  background: var(--aviso-exito-fondo);
+  border-color: var(--aviso-exito-borde);
   color: var(--exito);
 }
 .aviso-error {
-  background: #fcf2f2;
-  border-color: #efcccc;
+  background: var(--aviso-error-fondo);
+  border-color: var(--aviso-error-borde);
   color: var(--error);
 }
 .aviso-info {
-  background: #f2f4f6;
-  border-color: #dce0e5;
+  background: var(--aviso-info-fondo);
+  border-color: var(--aviso-info-borde);
   color: var(--informacion);
 }
 /* 14. PIE DE PÁGINA */
 .pie-pagina {
   padding: 28px 20px 18px;
-  background: #ffffff;
+  background: var(--superficie);
   border-top: 1px solid var(--borde);
 }
 .pie-contenido {
@@ -903,6 +1071,13 @@ img {
   .subtitulo-grupo {
     font-size: 10px;
   }
+  .boton-tema {
+    width: 44px;
+    padding: 8px;
+  }
+  .texto-tema {
+    display: none;
+  }
   .acceso-lideres {
     padding: 9px 11px;
     font-size: 12px;
@@ -1019,6 +1194,9 @@ img {
   margin: 12mm;
 }
 @media print {
+  :root {
+    color-scheme: light !important;
+  }
   html,
   body {
     width: auto !important;
@@ -1330,12 +1508,12 @@ img {
   width: 6px;
   height: 6px;
   display: inline-block;
-  background: #343a40;
+  background: var(--grupo);
   border-radius: 50%;
 }
 
 .detalle-grupo {
-  border-left-color: #343a40;
+  border-left-color: var(--grupo);
 }
 
 /* Evitar que el panel de administración desborde en móvil */

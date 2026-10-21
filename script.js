@@ -12,6 +12,7 @@ const MESES = [
 
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const CLAVE_DATOS = "hopeCalendarLocalV1";
+const CLAVE_TEMA = "hopeCalendarTema";
 
 let fechaSeleccionada = new Date();
 let reuniones = [];
@@ -29,12 +30,52 @@ const escuchar = (id, tipo, callback) =>
 document.addEventListener("DOMContentLoaded", iniciarAplicacion);
 
 function iniciarAplicacion() {
+  configurarTema();
   cargarLocalStorage();
   configurarSelectores();
   configurarEventos();
   actualizarTituloMes();
   renderizarTodo();
   cambiarEstadoConexion("Guardado localmente");
+}
+
+function temaOscuroActivo() {
+  const tema = document.documentElement.dataset.theme;
+  return tema === "dark" ||
+    (tema !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+function actualizarTema() {
+  const oscuro = temaOscuroActivo();
+  const boton = elemento("btnTema");
+
+  if (boton) {
+    boton.setAttribute("aria-label", oscuro ? "Activar modo claro" : "Activar modo oscuro");
+    boton.querySelector(".icono-tema").textContent = oscuro ? "☀" : "☾";
+    boton.querySelector(".texto-tema").textContent = oscuro ? "Modo claro" : "Modo oscuro";
+  }
+
+  document.querySelector("meta[name=\"theme-color\"]")?.setAttribute(
+    "content", oscuro ? "#1b2025" : "#ffffff"
+  );
+}
+
+function configurarTema() {
+  actualizarTema();
+  escuchar("btnTema", "click", () => {
+    const tema = temaOscuroActivo() ? "light" : "dark";
+    document.documentElement.dataset.theme = tema;
+
+    try {
+      localStorage.setItem(CLAVE_TEMA, tema);
+    } catch (error) {
+      console.warn("No se pudo guardar la preferencia de tema:", error);
+    }
+
+    actualizarTema();
+  });
+
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", actualizarTema);
 }
 
 /* =========================
@@ -1250,4 +1291,3 @@ function imprimirCalendario() {
     )
   ).then(() => setTimeout(() => window.print(), 100));
 }
-
