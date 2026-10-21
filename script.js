@@ -50,9 +50,10 @@ function actualizarTema() {
   const boton = elemento("btnTema");
 
   if (boton) {
-    boton.setAttribute("aria-label", oscuro ? "Activar modo claro" : "Activar modo oscuro");
+    const etiqueta = oscuro ? "Activar modo claro" : "Activar modo oscuro";
+    boton.setAttribute("aria-label", etiqueta);
+    boton.title = etiqueta;
     boton.querySelector(".icono-tema").textContent = oscuro ? "☀" : "☾";
-    boton.querySelector(".texto-tema").textContent = oscuro ? "Modo claro" : "Modo oscuro";
   }
 
   document.querySelector("meta[name=\"theme-color\"]")?.setAttribute(

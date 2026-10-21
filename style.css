@@ -465,9 +465,12 @@ img {
   border-color: var(--boton-borde-borde-hover);
 }
 .boton-tema {
-  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
   min-height: 44px;
-  white-space: nowrap;
+  flex: 0 0 44px;
+  padding: 0;
+  border-radius: 50%;
 }
 .icono-tema {
   font-size: 18px;
@@ -495,7 +498,7 @@ img {
   font-size: 12px;
   font-weight: 680;
 }
-.campo input,
+.campo input:not([type="checkbox"]):not([type="radio"]),
 .campo select,
 .campo textarea,
 .selector-periodo select {
@@ -511,7 +514,7 @@ img {
 .campo textarea::placeholder {
   color: var(--campo-placeholder);
 }
-.campo input:focus,
+.campo input:not([type="checkbox"]):not([type="radio"]):focus,
 .campo select:focus,
 .campo textarea:focus,
 .selector-periodo select:focus {
@@ -525,12 +528,16 @@ img {
   display: flex;
   align-items: center;
   gap: 9px;
+  white-space: nowrap;
   cursor: pointer;
 }
 .campo-checkbox input {
-  width: 17px;
-  min-height: 17px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex: 0 0 18px;
   margin: 0;
+  accent-color: var(--primario);
 }
 /* 7. NAVEGACIÓN DEL MES */
 .navegacion-mes {
@@ -1071,13 +1078,6 @@ img {
   .subtitulo-grupo {
     font-size: 10px;
   }
-  .boton-tema {
-    width: 44px;
-    padding: 8px;
-  }
-  .texto-tema {
-    display: none;
-  }
   .acceso-lideres {
     padding: 9px 11px;
     font-size: 12px;
@@ -1120,7 +1120,7 @@ img {
   .selector-periodo {
     gap: 8px;
   }
-  .campo input,
+  .campo input:not([type="checkbox"]):not([type="radio"]),
   .campo select,
   .campo textarea,
   .selector-periodo select {
@@ -1692,10 +1692,10 @@ img {
   max-width: 100%;
 }
 
-#contenidoAdministracion input,
+#contenidoAdministracion input:not([type="checkbox"]):not([type="radio"]),
 #contenidoAdministracion select,
 #contenidoAdministracion textarea,
-.contenido-administracion input,
+.contenido-administracion input:not([type="checkbox"]):not([type="radio"]),
 .contenido-administracion select,
 .contenido-administracion textarea {
   box-sizing: border-box;
