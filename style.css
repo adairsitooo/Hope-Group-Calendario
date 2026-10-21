@@ -1418,6 +1418,10 @@ img {
   color: #16a34a;
 }
 
+/* =========================================================
+   CORRECCIONES FINALES — HOPE GROUP
+   Burbujas del PDF y panel adaptable
+   ========================================================= */
 
 /* ===== BURBUJAS DE ACTIVIDADES EN EL PDF ===== */
 
@@ -1426,6 +1430,7 @@ img {
   flex-direction: column;
   align-items: stretch;
   gap: 3px;
+  width: 100%;
   min-width: 0;
 }
 
@@ -1467,60 +1472,294 @@ img {
   border-color: #fde68a;
 }
 
-/* Adaptación del panel de administración */
+/* ===== PANEL DE ADMINISTRACIÓN ===== */
+
 #panelLider,
+#panelEstacas,
 #contenidoAdministracion,
-#contenidoAdministracion form,
+.contenido-administracion,
 .lista-administracion,
 .fila-administracion {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
-#contenidoAdministracion {
+#panelLider,
+#panelEstacas,
+#contenidoAdministracion,
+.contenido-administracion {
   overflow-wrap: anywhere;
+}
+
+#contenidoAdministracion form,
+.contenido-administracion form,
+#contenidoAdministracion .campo,
+.contenido-administracion .campo {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 #contenidoAdministracion input,
 #contenidoAdministracion select,
-#contenidoAdministracion textarea {
+#contenidoAdministracion textarea,
+.contenido-administracion input,
+.contenido-administracion select,
+.contenido-administracion textarea {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
+.lista-administracion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .fila-administracion {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   flex-wrap: wrap;
+  gap: 12px;
+  padding: 13px;
+  overflow-wrap: anywhere;
 }
 
 .fila-administracion > div:first-child {
   flex: 1 1 140px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .fila-administracion .acciones-lider {
   flex: 1 1 100%;
-  min-width: 0;
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 0;
 }
 
 .fila-administracion .acciones-lider .boton {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* ===== CALENDARIO DEL PDF ===== */
+
+.reporte-mensual {
+  width: 100%;
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
+.reporte-calendario {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.reporte-dias-semana,
+.reporte-cuadricula {
+  width: 100%;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.reporte-celda {
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.reporte-numero-dia {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.reporte-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 15px;
+  margin-top: 8px;
+}
+
+/* ===== IMPRESIÓN Y GUARDADO COMO PDF ===== */
+
+@page {
+  size: letter portrait;
+  margin: 10mm;
+}
+
+@media print {
+  html,
+  body {
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body.imprimiendo-calendario > *:not(#zonaImpresion) {
+    display: none !important;
+  }
+
+  body.imprimiendo-calendario #zonaImpresion {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.imprimiendo-calendario .reporte-mensual {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 9pt !important;
+    line-height: 1.3 !important;
+  }
+
+  body.imprimiendo-calendario .reporte-encabezado,
+  body.imprimiendo-calendario .reporte-seccion,
+  body.imprimiendo-calendario .reporte-calendario,
+  body.imprimiendo-calendario .reporte-lista-actividades,
+  body.imprimiendo-calendario .reporte-lista-cumpleanos {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Mantener la cuadrícula mensual completa en una misma página */
+  body.imprimiendo-calendario .reporte-seccion-calendario {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.imprimiendo-calendario .reporte-marca-institucional {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.imprimiendo-calendario .reporte-dias-semana,
+  body.imprimiendo-calendario .reporte-cuadricula {
+    width: 100% !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  }
+
+  body.imprimiendo-calendario .reporte-celda {
+    min-width: 0 !important;
+    min-height: 54px !important;
+    padding: 3px !important;
+    overflow: hidden !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  body.imprimiendo-calendario .reporte-marca {
+    width: 100% !important;
+    padding: 2px 3px !important;
+    font-size: 6pt !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.imprimiendo-calendario .reporte-actividad,
+  body.imprimiendo-calendario .reporte-lista-cumpleanos li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.imprimiendo-calendario .reporte-encabezado {
+    margin-bottom: 12px !important;
+  }
+
+  body.imprimiendo-calendario .reporte-seccion {
+    margin-top: 14px !important;
+  }
+
+  body.imprimiendo-calendario .reporte-pie {
+    margin-top: 16px !important;
+    font-size: 8pt !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+}
+
+/* ===== AJUSTES PARA TELÉFONOS ===== */
+
 @media (max-width: 600px) {
   .tarjeta-panel-lider {
+    box-sizing: border-box;
     width: 100%;
     min-width: 0;
+    max-width: 100%;
     padding: 14px;
   }
 
+  #panelLider,
+  #panelEstacas,
+  #contenidoAdministracion,
+  .contenido-administracion {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .fila-administracion {
+    flex-direction: column;
+    gap: 10px;
     padding: 10px;
+  }
+
+  .fila-administracion > div:first-child {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .fila-administracion .acciones-lider {
+    width: 100%;
+    flex: 1 1 auto;
   }
 
   .fila-administracion .acciones-lider .boton {
