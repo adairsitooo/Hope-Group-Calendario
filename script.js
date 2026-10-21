@@ -1,3 +1,4 @@
+
 /* =========================================================
    HOPE GROUP — script.js
    Versión local: sin Supabase ni inicio de sesión.
@@ -273,6 +274,15 @@ function imprimirCalendario() {
 zona.hidden=false;document.body.classList.add("imprimiendo-calendario");
   const limpiar=()=>{zona.hidden=true;document.body.classList.remove("imprimiendo-calendario");window.removeEventListener("afterprint",limpiar);};
   window.addEventListener("afterprint",limpiar,{once:true});
-  const imgs=[...zona.querySelectorAll("img")];Promise.all(imgs.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener("load",resolve,{once:true});img.addEventListener("error",resolve,{once:true});}))).then(()=>setTimeout(()=>window.print(),100));
-
-
+    const imgs = [...zona.querySelectorAll("img")];
+  Promise.all(
+    imgs.map(img =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise(resolve => {
+            img.addEventListener("load", resolve, { once: true });
+            img.addEventListener("error", resolve, { once: true });
+          })
+    )
+  ).then(() => setTimeout(() => window.print(), 100));
+}
