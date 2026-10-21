@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,9 +7,9 @@
   <meta name="theme-color" content="#ffffff">
   <meta
     name="description"
-    content="Calendario privado de Hope Group: reuniones, eventos y cumpleaños."
+    content="Calendario de Hope Group: reuniones, grupos, eventos y cumpleaños."
   >
-  <title>Hope Group | Calendario</title>
+  <title>Hope Calendar | Hope Group</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js" defer></script>
@@ -26,27 +27,27 @@
         <span class="logo-predeterminado" hidden>HG</span>
         <span class="identidad-texto">
           <span class="nombre-grupo">Hope Group</span>
-          <span class="subtitulo-grupo">Calendario y organización</span>
+          <span class="subtitulo-grupo">Hope Calendar</span>
         </span>
-      </a>
-      <a class="acceso-lideres" href="#accesos">
-        Acceder
       </a>
     </div>
   </header>
+
   <main class="contenedor-principal">
     <section class="introduccion">
       <p class="texto-superior">ORGANIZACIÓN DEL GRUPO</p>
       <h1>Calendario mensual</h1>
       <p class="descripcion-principal">
-        Consulta las reuniones, los eventos y las fechas importantes
+        Organiza las reuniones, los grupos, los eventos y los cumpleaños
         de Hope Group desde un solo lugar.
       </p>
     </section>
+
     <div id="estadoConexion" class="estado-conexion" role="status">
       <span class="indicador-conexion" aria-hidden="true"></span>
       <span>Conectando...</span>
     </div>
+
     <div
       id="avisoGeneral"
       class="aviso"
@@ -54,9 +55,10 @@
       aria-live="polite"
       hidden
     ></div>
+
     <section class="rejilla-principal">
       <div class="columna-calendario">
-        <!-- CALENDARIO -->
+        <!-- CALENDARIO MENSUAL -->
         <section class="tarjeta tarjeta-calendario">
           <div class="encabezado-tarjeta encabezado-calendario">
             <div>
@@ -65,6 +67,7 @@
             </div>
             <span class="icono-tarjeta" aria-hidden="true">▦</span>
           </div>
+
           <div class="selector-periodo">
             <div class="campo campo-periodo">
               <label for="selectorMes">Mes</label>
@@ -83,11 +86,13 @@
                 <option value="11">Diciembre</option>
               </select>
             </div>
+
             <div class="campo campo-periodo">
               <label for="selectorAnio">Año</label>
               <select id="selectorAnio" name="anio"></select>
             </div>
           </div>
+
           <div class="navegacion-mes">
             <button
               id="mesAnterior"
@@ -95,9 +100,11 @@
               type="button"
               aria-label="Mes anterior"
             >‹</button>
+
             <h3 id="mesActual" aria-live="polite">
               Calendario mensual
             </h3>
+
             <button
               id="mesSiguiente"
               class="boton boton-secundario"
@@ -105,29 +112,45 @@
               aria-label="Mes siguiente"
             >›</button>
           </div>
+
           <div
             id="calendario"
             class="calendario"
             role="grid"
             aria-label="Calendario mensual"
           ></div>
+
           <div class="leyenda-calendario" aria-label="Leyenda">
             <span class="leyenda-item">
-              <span class="leyenda-punto punto-reunion"></span>
-              Reuniones
-            </span>
-            <span class="leyenda-item">
-              <span class="leyenda-punto punto-cumple"></span>
-              Cumpleaños
-            </span>
-            <span class="leyenda-item">
               <span
-                class="leyenda-punto punto-evento"
+                class="leyenda-punto punto-reunion"
                 aria-hidden="true"
               ></span>
-              Eventos
+              Reuniones
+            </span>
+
+            <span class="leyenda-item">
+              <span
+                class="leyenda-punto punto-grupo"
+                aria-hidden="true"
+              ></span>
+              Grupos
+            </span>
+
+            <span class="leyenda-item">
+              <span
+                class="leyenda-punto punto-cumple"
+                aria-hidden="true"
+              ></span>
+              Cumpleaños
+            </span>
+
+            <span class="leyenda-item">
+              <strong>Eventos</strong>
             </span>
           </div>
+
+          <!-- DETALLE DEL DÍA -->
           <section class="detalle-dia">
             <div class="encabezado-tarjeta">
               <div>
@@ -135,13 +158,16 @@
                 <h3 id="tituloDetalle">Selecciona una fecha</h3>
               </div>
             </div>
+
             <div id="detalleDia" aria-live="polite">
               <p class="texto-secundario">
                 Selecciona un día para consultar sus actividades.
               </p>
             </div>
           </section>
+
           <div class="separador"></div>
+
           <button
             id="btnImprimir"
             class="boton boton-principal ancho-completo"
@@ -149,11 +175,13 @@
           >
             Generar PDF del calendario del mes
           </button>
+
           <p class="texto-secundario">
-            El documento mensual deberá incluir todos los cumpleaños,
-            las reuniones y los eventos del mes seleccionado.
+            El documento mensual incluirá los cumpleaños, las reuniones,
+            los grupos y los eventos del mes seleccionado.
           </p>
         </section>
+
         <!-- CUMPLEAÑOS DEL MES -->
         <section class="tarjeta tarjeta-cumpleanos">
           <div class="encabezado-tarjeta">
@@ -163,6 +191,7 @@
             </div>
             <span class="icono-tarjeta" aria-hidden="true">♡</span>
           </div>
+
           <div
             id="cumpleanosMes"
             class="lista-cumpleanos"
@@ -172,148 +201,107 @@
               Cargando cumpleaños...
             </p>
           </div>
-          <p class="aviso-privacidad">
-            La información de cumpleaños está reservada para las personas
-            autorizadas. Inicia sesión para acceder a las funciones permitidas
-            según tu rol.
-          </p>
         </section>
       </div>
+
+      <!-- ADMINISTRACIÓN DIRECTA, SIN FORMULARIO DE ACCESO -->
       <aside class="columna-lateral">
-        <!-- ACCESO DE LÍDERES -->
-        <section id="accesos" class="tarjeta tarjeta-panel-lider">
-          <p class="texto-superior">ÁREA PRIVADA</p>
-          <h2>Acceso al calendario</h2>
+        <section id="panelLider" class="tarjeta tarjeta-panel-lider">
+          <p class="texto-superior">ADMINISTRACIÓN</p>
+          <h2>Gestionar calendario</h2>
           <p class="texto-secundario">
-            Inicia sesión con tu cuenta de líder autorizada.
+            Administra las fechas y las actividades de Hope Group.
           </p>
-          <section id="accesoLideres" hidden>
-            <div class="separador"></div>
-            <h3>Ingreso de líderes</h3>
-            <p class="texto-secundario">
-              Acceso exclusivo para líderes autorizados.
-            </p>
-            <form id="formLogin" class="formulario">
-              <div class="campo">
-                <label for="correoLider">Correo electrónico</label>
-                <input
-                  id="correoLider"
-                  name="correo"
-                  type="email"
-                  autocomplete="username"
-                  maxlength="254"
-                  required
-                >
-              </div>
-              <div class="campo">
-                <label for="claveLider">Contraseña</label>
-                <input
-                  id="claveLider"
-                  name="clave"
-                  type="password"
-                  autocomplete="current-password"
-                  required
-                >
-              </div>
-              <button
-                id="btnLogin"
-                class="boton boton-principal ancho-completo"
-                type="submit"
-              >
-                Iniciar sesión
-              </button>
-            </form>
-            <div
-              id="avisoLogin"
-              class="aviso"
-              role="status"
-              aria-live="polite"
-              hidden
-            ></div>
-          </section>
-          <!-- PANEL DE LÍDERES -->
-          <section id="panelLider" hidden>
-            <div class="separador"></div>
-            <h3>Panel de líderes</h3>
-            <p id="correoActivo" class="correo-activo"></p>
-            <div class="acciones-lider">
-              <button
-                id="btnActualizar"
-                class="boton boton-secundario ancho-completo"
-                type="button"
-              >
-                Actualizar información
-              </button>
-              <button
-                id="btnGestionarCumpleanos"
-                class="boton boton-secundario ancho-completo"
-                type="button"
-              >
-                Gestionar cumpleaños
-              </button>
-              <button
-                id="btnGestionarReuniones"
-                class="boton boton-secundario ancho-completo"
-                type="button"
-              >
-                Gestionar reuniones
-              </button>
-              <button
-                id="btnGestionarEventos"
-                class="boton boton-secundario ancho-completo"
-                type="button"
-              >
-                Gestionar eventos
-              </button>
-              <button
-                id="btnExportar"
-                class="boton boton-secundario ancho-completo"
-                type="button"
-              >
-                Exportar cumpleaños CSV
-              </button>
-              <button
-                id="btnGestionarDocumento"
-                class="boton boton-secundario ancho-completo"
-                type="button"
-              >
-                Documentos oficiales
-              </button>
-              <button
-                id="btnLogout"
-                class="boton boton-borde ancho-completo"
-                type="button"
-              >
-                Cerrar sesión
-              </button>
-            </div>
-            <div class="separador"></div>
-            <div
-              id="contenidoAdministracion"
-              class="contenido-administracion"
-              aria-live="polite"
-            ></div>
-          </section>
+
+          <div class="acciones-lider">
+            <button
+              id="btnActualizar"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Actualizar información
+            </button>
+
+            <button
+              id="btnGestionarCumpleanos"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Gestionar cumpleaños
+            </button>
+
+            <button
+              id="btnGestionarReuniones"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Gestionar reuniones
+            </button>
+
+            <button
+              id="btnGestionarGrupos"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Gestionar grupos
+            </button>
+
+            <button
+              id="btnGestionarEventos"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Gestionar eventos
+            </button>
+
+            <button
+              id="btnExportar"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Exportar cumpleaños CSV
+            </button>
+
+            <button
+              id="btnGestionarDocumento"
+              class="boton boton-secundario ancho-completo"
+              type="button"
+            >
+              Documentos oficiales
+            </button>
+          </div>
+
+          <div class="separador"></div>
+
+          <div
+            id="contenidoAdministracion"
+            class="contenido-administracion"
+            aria-live="polite"
+          ></div>
         </section>
       </aside>
     </section>
   </main>
-  <!-- CONTENEDOR PARA EL DOCUMENTO MENSUAL DE IMPRESIÓN -->
+
+  <!-- DOCUMENTO MENSUAL PARA IMPRESIÓN Y PDF -->
   <section
     id="zonaImpresion"
     hidden
     aria-label="Calendario mensual imprimible"
   ></section>
+
   <footer class="pie-pagina">
     <div class="pie-contenido">
       <div>
         <span class="nombre-pie">Hope Group</span>
         <p>Organización, servicio y unidad.</p>
       </div>
+
       <div class="texto-pie">
-        <p>Calendario de uso autorizado.</p>
+        <p>Hope Calendar</p>
       </div>
     </div>
+
     <div class="copyright">
       <p>
         © <span id="anioActual"></span> Hope Group.
@@ -321,16 +309,11 @@
       </p>
     </div>
   </footer>
+
   <script>
     document.getElementById("anioActual").textContent =
       new Date().getFullYear();
-    const accesoLideres = document.getElementById("accesoLideres");
-    const accesoInicial = document.querySelector(".acceso-lideres");
-    if (accesoInicial) {
-      accesoInicial.addEventListener("click", () => {
-        accesoLideres.hidden = false;
-      });
-    }
   </script>
 </body>
 </html>
+
