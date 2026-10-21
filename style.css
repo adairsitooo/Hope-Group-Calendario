@@ -1317,3 +1317,98 @@ img {
   border-radius: 4px;
   padding: 2px 4px;
 }
+
+
+/* =========================================================
+   CORRECCIONES PARA EL CALENDARIO LOCAL Y EL PDF
+   ========================================================= */
+
+/* Categorías del calendario */
+.marca-grupo {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  background: #343a40;
+  border-radius: 50%;
+}
+
+.detalle-grupo {
+  border-left-color: #343a40;
+}
+
+/* Evitar que el panel de administración desborde en móvil */
+#contenidoAdministracion {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#contenidoAdministracion .campo {
+  width: 100%;
+}
+
+/* Documento mensual */
+.reporte-mensual {
+  overflow-wrap: anywhere;
+}
+
+.reporte-marca-institucional {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.reporte-cuadricula {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.reporte-celda {
+  overflow: hidden;
+}
+
+.reporte-marca-reunion {
+  font-weight: 700;
+}
+
+.reporte-marca-grupo {
+  display: block;
+  margin: 1px 0;
+  background: transparent;
+  color: #222;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 600;
+}
+
+.reporte-marca-cumple {
+  font-weight: 600;
+}
+
+/* El documento solo aparece al imprimir */
+#zonaImpresion {
+  display: none;
+}
+
+@media print {
+  body.imprimiendo-calendario #zonaImpresion {
+    display: block !important;
+  }
+
+  body.imprimiendo-calendario .reporte-calendario,
+  body.imprimiendo-calendario .reporte-lista-actividades,
+  body.imprimiendo-calendario .reporte-lista-cumpleanos {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.imprimiendo-calendario .reporte-celda {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  body.imprimiendo-calendario .reporte-actividad,
+  body.imprimiendo-calendario .reporte-lista-cumpleanos li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
