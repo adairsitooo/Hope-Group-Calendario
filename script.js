@@ -19,6 +19,8 @@ let cumpleanos = [];
 let eventos = [];
 let planesMes = [];
 const temporizadoresAviso = new Map();
+let panelAdminActual = null;
+let filtroAdmin = "mes";
 
 const elemento = id => document.getElementById(id);
 const escuchar = (id, tipo, callback) =>
@@ -198,17 +200,15 @@ function cambiarPeriodo() {
     !Number.isInteger(anio)
   ) return;
 
-  fechaSeleccionada = new Date(anio, mes, 1);
-  actualizarTituloMes();
-  renderizarTodo();
+  irAMes(anio, mes);
 }
 
 function moverMes(cantidad) {
-  fechaSeleccionada = new Date(
-    fechaSeleccionada.getFullYear(),
-    fechaSeleccionada.getMonth() + cantidad,
-    1
-  );
+  irAMes(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth() + cantidad);
+}
+
+function irAMes(anio, mes) {
+  fechaSeleccionada = new Date(anio, mes, 1);
 
   if (elemento("selectorMes")) {
     elemento("selectorMes").value = String(fechaSeleccionada.getMonth());
@@ -231,6 +231,9 @@ function moverMes(cantidad) {
 
   actualizarTituloMes();
   renderizarTodo();
+
+  // El panel abierto depende del mes: límites de fecha y filtro de la lista.
+  if (panelAdminActual) panelAdminActual();
 }
 
 function actualizarTituloMes() {
@@ -550,10 +553,11 @@ function renderizarCumpleanos() {
    ADMINISTRACIÓN
    ========================= */
 
-function limpiarAdmin(tituloTexto) {
+function limpiarAdmin(tituloTexto, refrescar = null) {
   const contenedor = elemento("contenidoAdministracion");
   if (!contenedor) return null;
 
+  panelAdminActual = refrescar;
   contenedor.replaceChildren();
 
   const titulo = document.createElement("h3");
@@ -570,6 +574,13 @@ function campoHTML(id, label, type = "text", extra = "") {
 function crearListaAdmin(contenedor, items, descripcion, editar, borrar) {
   const lista = document.createElement("div");
   lista.className = "lista-administracion";
+
+  if (!items.length) {
+    const vacio = document.createElement("p");
+    vacio.className = "texto-secundario";
+    vacio.textContent = "No hay registros para mostrar.";
+    lista.appendChild(vacio);
+  }
 
   items.forEach(item => {
     const fila = document.createElement("div");
@@ -600,6 +611,56 @@ function crearListaAdmin(contenedor, items, descripcion, editar, borrar) {
   contenedor.appendChild(lista);
 }
 
+function crearFiltroAdmin(contenedor, alCambiar) {
+  const campo = document.createElement("div");
+  campo.className = "campo filtro-administracion";
+
+  const etiqueta = document.createElement("label");
+  etiqueta.htmlFor = "filtroAdmin";
+  etiqueta.textContent = "Mostrar";
+
+  const selector = document.createElement("select");
+  selector.id = "filtroAdmin";
+
+  [
+    ["mes", `Solo ${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`],
+    ["todos", "Todos los meses"]
+  ].forEach(([valor, texto]) => {
+    const opcion = document.createElement("option");
+    opcion.value = valor;
+    opcion.textContent = texto;
+    selector.appendChild(opcion);
+  });
+
+  selector.value = filtroAdmin;
+  selector.addEventListener("change", () => {
+    filtroAdmin = selector.value;
+    alCambiar();
+  });
+
+  campo.append(etiqueta, selector);
+  contenedor.appendChild(campo);
+}
+
+function filtrarAdmin(items, coincideMes) {
+  return filtroAdmin === "todos" ? items.slice() : items.filter(coincideMes);
+}
+
+function enMesSeleccionado(fecha) {
+  return fecha.startsWith(fechaLimitesMes().min.slice(0, 7));
+}
+
+/* Una reunión o un evento solo se guarda dentro del mes seleccionado,
+   así que primero se navega al mes del elemento. */
+function editarEnSuMes(item, mostrar) {
+  if (!enMesSeleccionado(item.fecha)) {
+    const [anio, mes] = item.fecha.split("-").map(Number);
+    irAMes(anio, mes - 1);
+  }
+
+  mostrar(item);
+}
+
 function fechaLimitesMes() {
   return {
     min: fechaISO(new Date(
@@ -618,7 +679,7 @@ function fechaLimitesMes() {
 /* Cumpleaños */
 
 function mostrarGestionCumpleanos(enEdicion = null) {
-  const contenedor = limpiarAdmin("Administrar cumpleaños");
+  const contenedor = limpiarAdmin("Administrar cumpleaños", () => mostrarGestionCumpleanos());
   if (!contenedor) return;
 
   const formulario = document.createElement("form");
@@ -665,20 +726,29 @@ function mostrarGestionCumpleanos(enEdicion = null) {
 
   contenedor.appendChild(formulario);
 
-  crearListaAdmin(
-    contenedor,
-    cumpleanos.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    x => `<strong>${escaparHTML(x.nombre)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
-    x => mostrarGestionCumpleanos(x),
-    x => {
-      if (!confirm(`¿Eliminar el cumpleaños de ${x.nombre}?`)) return;
+  const mesTexto = String(fechaSeleccionada.getMonth() + 1).padStart(2, "0");
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(cumpleanos, x => x.fecha.slice(5, 7) === mesTexto)
+        .sort((a, b) => a.fecha.slice(5).localeCompare(b.fecha.slice(5)) ||
+          a.nombre.localeCompare(b.nombre, "es")),
+      x => `<strong>${escaparHTML(x.nombre)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
+      x => mostrarGestionCumpleanos(x),
+      x => {
+        if (!confirm(`¿Eliminar el cumpleaños de ${x.nombre}?`)) return;
 
-      cumpleanos = cumpleanos.filter(p => p.id !== x.id);
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionCumpleanos();
-    }
-  );
+        cumpleanos = cumpleanos.filter(p => p.id !== x.id);
+        guardarLocalStorage();
+        renderizarTodo();
+        mostrarGestionCumpleanos();
+      }
+    );
+  };
+
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
 
   if (enEdicion) {
     formulario.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -689,7 +759,7 @@ function mostrarGestionCumpleanos(enEdicion = null) {
 /* Reuniones: incluye las actividades antiguas de grupos */
 
 function mostrarGestionReuniones(enEdicion = null) {
-  const contenedor = limpiarAdmin("Administrar reuniones");
+  const contenedor = limpiarAdmin("Administrar reuniones", () => mostrarGestionReuniones());
   if (!contenedor) return;
 
   const limites = fechaLimitesMes();
@@ -751,23 +821,30 @@ function mostrarGestionReuniones(enEdicion = null) {
 
   contenedor.appendChild(formulario);
 
-  crearListaAdmin(
-    contenedor,
-    reuniones.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    x =>
-      `<strong>${escaparHTML(formatoFecha(x.fecha))} — ${escaparHTML(tituloReunion(x))}</strong>
-      <p>${x.cancelada ? "Reunión cancelada" : `Predicador: ${escaparHTML(x.predicador || "Por asignar")}`}</p>
-      ${x.cancelada ? "" : `<p>Refacción: ${escaparHTML(x.refaccion || "Por asignar")}</p>`}`,
-    x => mostrarGestionReuniones(x),
-    x => {
-      if (!confirm(`¿Eliminar "${tituloReunion(x)}" del ${formatoFecha(x.fecha)}?`)) return;
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(reuniones, x => enMesSeleccionado(x.fecha))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      x =>
+        `<strong>${escaparHTML(formatoFecha(x.fecha))} — ${escaparHTML(tituloReunion(x))}</strong>
+        <p>${x.cancelada ? "Reunión cancelada" : `Predicador: ${escaparHTML(x.predicador || "Por asignar")}`}</p>
+        ${x.cancelada ? "" : `<p>Refacción: ${escaparHTML(x.refaccion || "Por asignar")}</p>`}`,
+      x => editarEnSuMes(x, mostrarGestionReuniones),
+      x => {
+        if (!confirm(`¿Eliminar "${tituloReunion(x)}" del ${formatoFecha(x.fecha)}?`)) return;
 
-      reuniones = reuniones.filter(r => r.id !== x.id);
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionReuniones();
-    }
-  );
+        reuniones = reuniones.filter(r => r.id !== x.id);
+        guardarLocalStorage();
+        renderizarTodo();
+        mostrarGestionReuniones();
+      }
+    );
+  };
+
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
 
   if (enEdicion) {
     formulario.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -778,7 +855,7 @@ function mostrarGestionReuniones(enEdicion = null) {
 /* Eventos */
 
 function mostrarGestionEventos(enEdicion = null) {
-  const contenedor = limpiarAdmin("Administrar eventos");
+  const contenedor = limpiarAdmin("Administrar eventos", () => mostrarGestionEventos());
   if (!contenedor) return;
 
   const limites = fechaLimitesMes();
@@ -827,20 +904,27 @@ function mostrarGestionEventos(enEdicion = null) {
 
   contenedor.appendChild(formulario);
 
-  crearListaAdmin(
-    contenedor,
-    eventos.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    x => `<strong>${escaparHTML(x.titulo)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
-    x => mostrarGestionEventos(x),
-    x => {
-      if (!confirm(`¿Eliminar el evento "${x.titulo}"?`)) return;
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(eventos, x => enMesSeleccionado(x.fecha))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      x => `<strong>${escaparHTML(x.titulo)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
+      x => editarEnSuMes(x, mostrarGestionEventos),
+      x => {
+        if (!confirm(`¿Eliminar el evento "${x.titulo}"?`)) return;
 
-      eventos = eventos.filter(e => e.id !== x.id);
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionEventos();
-    }
-  );
+        eventos = eventos.filter(e => e.id !== x.id);
+        guardarLocalStorage();
+        renderizarTodo();
+        mostrarGestionEventos();
+      }
+    );
+  };
+
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
 
   if (enEdicion) {
     formulario.scrollIntoView({ behavior: "smooth", block: "start" });

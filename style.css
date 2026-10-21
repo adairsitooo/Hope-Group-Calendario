@@ -450,6 +450,11 @@ img {
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
+.filtro-administracion {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
 .marcas-dia {
   display: flex;
   flex-wrap: wrap;
