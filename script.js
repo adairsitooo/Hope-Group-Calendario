@@ -45,46 +45,7 @@ function cargarLocalStorage() {
 
     const datos = JSON.parse(guardado);
 
-    reuniones = Array.isArray(datos.reuniones) ? datos.reuniones : [];
-    cumpleanos = Array.isArray(datos.cumpleanos) ? datos.cumpleanos : [];
-    eventos = Array.isArray(datos.eventos) ? datos.eventos : [];
-    planesMes = Array.isArray(datos.planesMes) ? datos.planesMes : [];
-
-    /*
-     * Conserva las actividades guardadas anteriormente como "Grupos".
-     * Se convierten en reuniones con su título original.
-     */
-    const gruposAntiguos = Array.isArray(datos.grupos) ? datos.grupos : [];
-
-    if (gruposAntiguos.length) {
-      gruposAntiguos.forEach(grupo => {
-        if (!grupo || !grupo.fecha) return;
-
-        const yaExiste = reuniones.some(
-          reunion =>
-            reunion.id === grupo.id ||
-            (
-              reunion.fecha === grupo.fecha &&
-              reunion.titulo === grupo.titulo &&
-              reunion.migradoDeGrupo === true
-            )
-        );
-
-        if (!yaExiste) {
-          reuniones.push({
-            id: grupo.id || idNuevo(),
-            fecha: grupo.fecha,
-            titulo: grupo.titulo || "Reunión",
-            predicador: "",
-            refaccion: "",
-            cancelada: false,
-            migradoDeGrupo: true
-          });
-        }
-      });
-
-      guardarLocalStorage();
-    }
+    if (cargarDatos(datos)) guardarLocalStorage();
   } catch (error) {
     console.error("No se pudieron leer los datos locales:", error);
     mostrarAviso(
@@ -93,6 +54,76 @@ function cargarLocalStorage() {
       "error"
     );
   }
+}
+
+function cargarDatos(datos) {
+  const fechaValida = item =>
+    item && typeof item === "object" && !Array.isArray(item) &&
+    typeof item.fecha === "string" && validarFecha(item.fecha);
+
+  reuniones = (Array.isArray(datos.reuniones) ? datos.reuniones : [])
+    .filter(fechaValida)
+    .map(item => ({
+      ...item,
+      id: item.id || idNuevo(),
+      titulo: typeof item.titulo === "string" ? item.titulo : "",
+      predicador: typeof item.predicador === "string" ? item.predicador : "",
+      refaccion: typeof item.refaccion === "string" ? item.refaccion : "",
+      cancelada: item.cancelada === true
+    }));
+
+  cumpleanos = (Array.isArray(datos.cumpleanos) ? datos.cumpleanos : [])
+    .filter(item => fechaValida(item) &&
+      typeof item.nombre === "string" && item.nombre.trim())
+    .map(item => ({ ...item, id: item.id || idNuevo(), nombre: item.nombre.trim() }));
+
+  eventos = (Array.isArray(datos.eventos) ? datos.eventos : [])
+    .filter(fechaValida)
+    .map(item => ({
+      ...item,
+      id: item.id || idNuevo(),
+      titulo: typeof item.titulo === "string" && item.titulo.trim()
+        ? item.titulo : "Evento"
+    }));
+
+  planesMes = (Array.isArray(datos.planesMes) ? datos.planesMes : [])
+    .filter(item => item && typeof item === "object" && !Array.isArray(item));
+
+  return migrarGrupos(datos.grupos);
+}
+
+function migrarGrupos(grupos) {
+  if (!Array.isArray(grupos)) return false;
+
+  let huboMigracion = false;
+
+  grupos.forEach(grupo => {
+    if (!grupo || typeof grupo !== "object" ||
+      typeof grupo.fecha !== "string" || !validarFecha(grupo.fecha)) return;
+
+    const titulo = typeof grupo.titulo === "string" && grupo.titulo.trim()
+      ? grupo.titulo : "Reunión";
+    const yaExiste = reuniones.some(reunion =>
+      reunion.id === grupo.id ||
+      (reunion.fecha === grupo.fecha &&
+        reunion.titulo === titulo && reunion.migradoDeGrupo === true)
+    );
+
+    if (!yaExiste) {
+      reuniones.push({
+        id: grupo.id || idNuevo(),
+        fecha: grupo.fecha,
+        titulo,
+        predicador: "",
+        refaccion: "",
+        cancelada: false,
+        migradoDeGrupo: true
+      });
+      huboMigracion = true;
+    }
+  });
+
+  return huboMigracion;
 }
 
 function guardarLocalStorage() {
@@ -213,9 +244,8 @@ function actualizarTituloMes() {
    ========================= */
 
 function cambiarEstadoConexion(texto) {
-  if (elemento("estadoConexion")) {
-    elemento("estadoConexion").textContent = texto;
-  }
+  const textoEstado = elemento("estadoConexion")?.querySelector("span:not(.indicador-conexion)");
+  if (textoEstado) textoEstado.textContent = texto;
 }
 
 function mostrarAviso(id, mensaje, tipo = "info") {
@@ -306,6 +336,7 @@ function renderizarCalendario() {
   const contenedor = elemento("calendario");
   if (!contenedor) return;
 
+  const seleccionadaAnterior = contenedor.querySelector(".dia.seleccionado")?.dataset.fecha;
   contenedor.replaceChildren();
 
   const encabezados = document.createElement("div");
@@ -328,9 +359,9 @@ function renderizarCalendario() {
   const inicio = obtenerDiaSemana(new Date(anio, mes, 1));
   const total = new Date(anio, mes + 1, 0).getDate();
 
-  const seleccionada =
-    contenedor.querySelector(".dia.seleccionado")?.dataset.fecha ||
-    fechaISO(fechaSeleccionada);
+  const seleccionada = seleccionadaAnterior?.slice(0, 7) ===
+    fechaISO(fechaSeleccionada).slice(0, 7)
+    ? seleccionadaAnterior : fechaISO(fechaSeleccionada);
 
   for (let i = 0; i < inicio; i++) {
     const vacio = document.createElement("div");
@@ -708,6 +739,11 @@ function mostrarGestionReuniones() {
         return;
       }
 
+      if (!fecha.startsWith(limites.min.slice(0, 7))) {
+        mostrarAviso("avisoGeneral", "La reunión debe pertenecer al mes seleccionado.", "error");
+        return;
+      }
+
       const predicador = prompt("Predicador:", x.predicador || "");
       if (predicador === null) return;
 
@@ -718,7 +754,9 @@ function mostrarGestionReuniones() {
       x.fecha = fecha;
       x.predicador = predicador.trim();
       x.refaccion = refaccion.trim();
-      x.cancelada = confirm("¿Marcar la reunión como cancelada? Aceptar = sí.");
+      if (confirm(`La reunión está ${x.cancelada ? "cancelada" : "activa"}. ¿Cambiarla a ${x.cancelada ? "activa" : "cancelada"}?`)) {
+        x.cancelada = !x.cancelada;
+      }
 
       guardarLocalStorage();
       renderizarTodo();
@@ -786,6 +824,11 @@ function mostrarGestionEventos() {
 
       if (!titulo.trim() || !validarFecha(fecha)) {
         mostrarAviso("avisoGeneral", "El nombre y la fecha son obligatorios.", "error");
+        return;
+      }
+
+      if (!fecha.startsWith(limites.min.slice(0, 7))) {
+        mostrarAviso("avisoGeneral", "El evento debe pertenecer al mes seleccionado.", "error");
         return;
       }
 
@@ -902,39 +945,7 @@ function mostrarAvisoDocumentos() {
         return;
       }
 
-      reuniones = datos.reuniones.slice();
-      cumpleanos = datos.cumpleanos;
-      eventos = datos.eventos;
-      planesMes = Array.isArray(datos.planesMes) ? datos.planesMes : [];
-
-      // También migra los grupos incluidos en respaldos antiguos.
-      const gruposAntiguos = Array.isArray(datos.grupos) ? datos.grupos : [];
-
-      gruposAntiguos.forEach(grupo => {
-        if (!grupo || !grupo.fecha) return;
-
-        const yaExiste = reuniones.some(
-          reunion =>
-            reunion.id === grupo.id ||
-            (
-              reunion.fecha === grupo.fecha &&
-              reunion.titulo === grupo.titulo &&
-              reunion.migradoDeGrupo === true
-            )
-        );
-
-        if (!yaExiste) {
-          reuniones.push({
-            id: grupo.id || idNuevo(),
-            fecha: grupo.fecha,
-            titulo: grupo.titulo || "Reunión",
-            predicador: "",
-            refaccion: "",
-            cancelada: false,
-            migradoDeGrupo: true
-          });
-        }
-      });
+      cargarDatos(datos);
 
       if (!guardarLocalStorage()) return;
 
