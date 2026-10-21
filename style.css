@@ -1,4 +1,3 @@
-
 /* =========================================================
    HOPE GROUP — style.css
    Diseño adaptable, paneles, calendario y documento mensual.
@@ -1417,4 +1416,124 @@ img {
 
 .reporte-marca-evento {
   color: #16a34a;
+}
+
+
+/* ===== BURBUJAS DE ACTIVIDADES EN EL PDF ===== */
+
+.reporte-marcas {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reporte-marca {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 6.5pt;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Reuniones: azul */
+.reporte-marca-reunion {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+/* Eventos: verde */
+.reporte-marca-evento {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+/* Cumpleaños: amarillo */
+.reporte-marca-cumple {
+  color: #854d0e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+/* Adaptación del panel de administración */
+#panelLider,
+#contenidoAdministracion,
+#contenidoAdministracion form,
+.lista-administracion,
+.fila-administracion {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#contenidoAdministracion {
+  overflow-wrap: anywhere;
+}
+
+#contenidoAdministracion input,
+#contenidoAdministracion select,
+#contenidoAdministracion textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fila-administracion {
+  flex-wrap: wrap;
+}
+
+.fila-administracion > div:first-child {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.fila-administracion .acciones-lider {
+  flex: 1 1 100%;
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.fila-administracion .acciones-lider .boton {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .tarjeta-panel-lider {
+    width: 100%;
+    min-width: 0;
+    padding: 14px;
+  }
+
+  .fila-administracion {
+    padding: 10px;
+  }
+
+  .fila-administracion .acciones-lider .boton {
+    flex: 1 1 90px;
+  }
+
+  .reporte-celda {
+    min-width: 0;
+    padding: 3px;
+  }
+
+  .reporte-marca {
+    padding: 2px;
+    font-size: 5.5pt;
+  }
 }
