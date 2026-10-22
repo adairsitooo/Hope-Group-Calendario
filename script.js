@@ -12,12 +12,16 @@ const MESES = [
 
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const CLAVE_DATOS = "hopeCalendarLocalV1";
+const CLAVE_TEMA = "hopeCalendarTema";
 
 let fechaSeleccionada = new Date();
 let reuniones = [];
 let cumpleanos = [];
 let eventos = [];
 let planesMes = [];
+const temporizadoresAviso = new Map();
+let panelAdminActual = null;
+let filtroAdmin = "mes";
 
 const elemento = id => document.getElementById(id);
 const escuchar = (id, tipo, callback) =>
@@ -26,12 +30,53 @@ const escuchar = (id, tipo, callback) =>
 document.addEventListener("DOMContentLoaded", iniciarAplicacion);
 
 function iniciarAplicacion() {
+  configurarTema();
   cargarLocalStorage();
   configurarSelectores();
   configurarEventos();
   actualizarTituloMes();
   renderizarTodo();
   cambiarEstadoConexion("Guardado localmente");
+}
+
+function temaOscuroActivo() {
+  const tema = document.documentElement.dataset.theme;
+  return tema === "dark" ||
+    (tema !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+function actualizarTema() {
+  const oscuro = temaOscuroActivo();
+  const boton = elemento("btnTema");
+
+  if (boton) {
+    const etiqueta = oscuro ? "Activar modo claro" : "Activar modo oscuro";
+    boton.setAttribute("aria-label", etiqueta);
+    boton.title = etiqueta;
+    boton.querySelector(".icono-tema").textContent = oscuro ? "☀" : "☾";
+  }
+
+  document.querySelector("meta[name=\"theme-color\"]")?.setAttribute(
+    "content", oscuro ? "#1b2025" : "#ffffff"
+  );
+}
+
+function configurarTema() {
+  actualizarTema();
+  escuchar("btnTema", "click", () => {
+    const tema = temaOscuroActivo() ? "light" : "dark";
+    document.documentElement.dataset.theme = tema;
+
+    try {
+      localStorage.setItem(CLAVE_TEMA, tema);
+    } catch (error) {
+      console.warn("No se pudo guardar la preferencia de tema:", error);
+    }
+
+    actualizarTema();
+  });
+
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", actualizarTema);
 }
 
 /* =========================
@@ -45,46 +90,7 @@ function cargarLocalStorage() {
 
     const datos = JSON.parse(guardado);
 
-    reuniones = Array.isArray(datos.reuniones) ? datos.reuniones : [];
-    cumpleanos = Array.isArray(datos.cumpleanos) ? datos.cumpleanos : [];
-    eventos = Array.isArray(datos.eventos) ? datos.eventos : [];
-    planesMes = Array.isArray(datos.planesMes) ? datos.planesMes : [];
-
-    /*
-     * Conserva las actividades guardadas anteriormente como "Grupos".
-     * Se convierten en reuniones con su título original.
-     */
-    const gruposAntiguos = Array.isArray(datos.grupos) ? datos.grupos : [];
-
-    if (gruposAntiguos.length) {
-      gruposAntiguos.forEach(grupo => {
-        if (!grupo || !grupo.fecha) return;
-
-        const yaExiste = reuniones.some(
-          reunion =>
-            reunion.id === grupo.id ||
-            (
-              reunion.fecha === grupo.fecha &&
-              reunion.titulo === grupo.titulo &&
-              reunion.migradoDeGrupo === true
-            )
-        );
-
-        if (!yaExiste) {
-          reuniones.push({
-            id: grupo.id || idNuevo(),
-            fecha: grupo.fecha,
-            titulo: grupo.titulo || "Reunión",
-            predicador: "",
-            refaccion: "",
-            cancelada: false,
-            migradoDeGrupo: true
-          });
-        }
-      });
-
-      guardarLocalStorage();
-    }
+    if (cargarDatos(datos)) guardarLocalStorage();
   } catch (error) {
     console.error("No se pudieron leer los datos locales:", error);
     mostrarAviso(
@@ -93,6 +99,76 @@ function cargarLocalStorage() {
       "error"
     );
   }
+}
+
+function cargarDatos(datos) {
+  const fechaValida = item =>
+    item && typeof item === "object" && !Array.isArray(item) &&
+    typeof item.fecha === "string" && validarFecha(item.fecha);
+
+  reuniones = (Array.isArray(datos.reuniones) ? datos.reuniones : [])
+    .filter(fechaValida)
+    .map(item => ({
+      ...item,
+      id: item.id || idNuevo(),
+      titulo: typeof item.titulo === "string" ? item.titulo : "",
+      predicador: typeof item.predicador === "string" ? item.predicador : "",
+      refaccion: typeof item.refaccion === "string" ? item.refaccion : "",
+      cancelada: item.cancelada === true
+    }));
+
+  cumpleanos = (Array.isArray(datos.cumpleanos) ? datos.cumpleanos : [])
+    .filter(item => fechaValida(item) &&
+      typeof item.nombre === "string" && item.nombre.trim())
+    .map(item => ({ ...item, id: item.id || idNuevo(), nombre: item.nombre.trim() }));
+
+  eventos = (Array.isArray(datos.eventos) ? datos.eventos : [])
+    .filter(fechaValida)
+    .map(item => ({
+      ...item,
+      id: item.id || idNuevo(),
+      titulo: typeof item.titulo === "string" && item.titulo.trim()
+        ? item.titulo : "Evento"
+    }));
+
+  planesMes = (Array.isArray(datos.planesMes) ? datos.planesMes : [])
+    .filter(item => item && typeof item === "object" && !Array.isArray(item));
+
+  return migrarGrupos(datos.grupos);
+}
+
+function migrarGrupos(grupos) {
+  if (!Array.isArray(grupos)) return false;
+
+  let huboMigracion = false;
+
+  grupos.forEach(grupo => {
+    if (!grupo || typeof grupo !== "object" ||
+      typeof grupo.fecha !== "string" || !validarFecha(grupo.fecha)) return;
+
+    const titulo = typeof grupo.titulo === "string" && grupo.titulo.trim()
+      ? grupo.titulo : "Reunión";
+    const yaExiste = reuniones.some(reunion =>
+      reunion.id === grupo.id ||
+      (reunion.fecha === grupo.fecha &&
+        reunion.titulo === titulo && reunion.migradoDeGrupo === true)
+    );
+
+    if (!yaExiste) {
+      reuniones.push({
+        id: grupo.id || idNuevo(),
+        fecha: grupo.fecha,
+        titulo,
+        predicador: "",
+        refaccion: "",
+        cancelada: false,
+        migradoDeGrupo: true
+      });
+      huboMigracion = true;
+    }
+  });
+
+  return huboMigracion;
 }
 
 function guardarLocalStorage() {
@@ -126,11 +202,12 @@ function configurarEventos() {
   escuchar("selectorAnio", "change", cambiarPeriodo);
   escuchar("btnImprimir", "click", imprimirCalendario);
 
-  escuchar("btnGestionarCumpleanos", "click", mostrarGestionCumpleanos);
-  escuchar("btnGestionarReuniones", "click", mostrarGestionReuniones);
-  escuchar("btnGestionarEventos", "click", mostrarGestionEventos);
+  escuchar("btnGestionarCumpleanos", "click", () => mostrarGestionCumpleanos());
+  escuchar("btnGestionarReuniones", "click", () => mostrarGestionReuniones());
+  escuchar("btnGestionarEventos", "click", () => mostrarGestionEventos());
   escuchar("btnExportar", "click", exportarCumpleanosCSV);
   escuchar("btnGestionarDocumento", "click", mostrarAvisoDocumentos);
+  escuchar("btnCalendarioExterno", "click", mostrarExportarCalendario);
 }
 
 function configurarSelectores() {
@@ -166,17 +243,15 @@ function cambiarPeriodo() {
     !Number.isInteger(anio)
   ) return;
 
-  fechaSeleccionada = new Date(anio, mes, 1);
-  actualizarTituloMes();
-  renderizarTodo();
+  irAMes(anio, mes);
 }
 
 function moverMes(cantidad) {
-  fechaSeleccionada = new Date(
-    fechaSeleccionada.getFullYear(),
-    fechaSeleccionada.getMonth() + cantidad,
-    1
-  );
+  irAMes(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth() + cantidad);
+}
+
+function irAMes(anio, mes) {
+  fechaSeleccionada = new Date(anio, mes, 1);
 
   if (elemento("selectorMes")) {
     elemento("selectorMes").value = String(fechaSeleccionada.getMonth());
@@ -199,6 +274,9 @@ function moverMes(cantidad) {
 
   actualizarTituloMes();
   renderizarTodo();
+
+  // El panel abierto depende del mes: límites de fecha y filtro de la lista.
+  if (panelAdminActual) panelAdminActual();
 }
 
 function actualizarTituloMes() {
@@ -213,18 +291,26 @@ function actualizarTituloMes() {
    ========================= */
 
 function cambiarEstadoConexion(texto) {
-  if (elemento("estadoConexion")) {
-    elemento("estadoConexion").textContent = texto;
-  }
+  const textoEstado = elemento("estadoConexion")?.querySelector("span:not(.indicador-conexion)");
+  if (textoEstado) textoEstado.textContent = texto;
 }
 
 function mostrarAviso(id, mensaje, tipo = "info") {
   const nodo = elemento(id);
   if (!nodo) return;
 
+  clearTimeout(temporizadoresAviso.get(id));
+  temporizadoresAviso.delete(id);
   nodo.textContent = mensaje;
   nodo.className = `aviso aviso-${tipo}`;
   nodo.hidden = false;
+
+  if (tipo === "exito" || tipo === "info") {
+    temporizadoresAviso.set(id, setTimeout(() => {
+      ocultarAviso(id);
+      temporizadoresAviso.delete(id);
+    }, 4000));
+  }
 }
 
 function ocultarAviso(id) {
@@ -306,6 +392,7 @@ function renderizarCalendario() {
   const contenedor = elemento("calendario");
   if (!contenedor) return;
 
+  const seleccionadaAnterior = contenedor.querySelector(".dia.seleccionado")?.dataset.fecha;
   contenedor.replaceChildren();
 
   const encabezados = document.createElement("div");
@@ -327,10 +414,11 @@ function renderizarCalendario() {
   const mes = fechaSeleccionada.getMonth();
   const inicio = obtenerDiaSemana(new Date(anio, mes, 1));
   const total = new Date(anio, mes + 1, 0).getDate();
+  const hoy = fechaISO(new Date());
 
-  const seleccionada =
-    contenedor.querySelector(".dia.seleccionado")?.dataset.fecha ||
-    fechaISO(fechaSeleccionada);
+  const seleccionada = seleccionadaAnterior?.slice(0, 7) ===
+    fechaISO(fechaSeleccionada).slice(0, 7)
+    ? seleccionadaAnterior : fechaISO(fechaSeleccionada);
 
   for (let i = 0; i < inicio; i++) {
     const vacio = document.createElement("div");
@@ -349,6 +437,10 @@ function renderizarCalendario() {
     celda.setAttribute("aria-label", `${numero} de ${MESES[mes]} de ${anio}`);
 
     if (fecha === seleccionada) celda.classList.add("seleccionado");
+    if (fecha === hoy) {
+      celda.classList.add("hoy");
+      celda.setAttribute("aria-current", "date");
+    }
 
     const numeroDia = document.createElement("span");
     numeroDia.className = "numero-dia";
@@ -456,6 +548,11 @@ function renderizarDetalleDia(fecha) {
     }
 
     tarjeta.append(encabezado, parrafo);
+
+    if (!(categoria === "reunion" && datos.cancelada)) {
+      tarjeta.appendChild(crearAccionesCalendario(categoria, datos));
+    }
+
     detalle.appendChild(tarjeta);
   });
 }
@@ -504,10 +601,11 @@ function renderizarCumpleanos() {
    ADMINISTRACIÓN
    ========================= */
 
-function limpiarAdmin(tituloTexto) {
+function limpiarAdmin(tituloTexto, refrescar = null) {
   const contenedor = elemento("contenidoAdministracion");
   if (!contenedor) return null;
 
+  panelAdminActual = refrescar;
   contenedor.replaceChildren();
 
   const titulo = document.createElement("h3");
@@ -524,6 +622,13 @@ function campoHTML(id, label, type = "text", extra = "") {
 function crearListaAdmin(contenedor, items, descripcion, editar, borrar) {
   const lista = document.createElement("div");
   lista.className = "lista-administracion";
+
+  if (!items.length) {
+    const vacio = document.createElement("p");
+    vacio.className = "texto-secundario";
+    vacio.textContent = "No hay registros para mostrar.";
+    lista.appendChild(vacio);
+  }
 
   items.forEach(item => {
     const fila = document.createElement("div");
@@ -554,6 +659,56 @@ function crearListaAdmin(contenedor, items, descripcion, editar, borrar) {
   contenedor.appendChild(lista);
 }
 
+function crearFiltroAdmin(contenedor, alCambiar) {
+  const campo = document.createElement("div");
+  campo.className = "campo filtro-administracion";
+
+  const etiqueta = document.createElement("label");
+  etiqueta.htmlFor = "filtroAdmin";
+  etiqueta.textContent = "Mostrar";
+
+  const selector = document.createElement("select");
+  selector.id = "filtroAdmin";
+
+  [
+    ["mes", `Solo ${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`],
+    ["todos", "Todos los meses"]
+  ].forEach(([valor, texto]) => {
+    const opcion = document.createElement("option");
+    opcion.value = valor;
+    opcion.textContent = texto;
+    selector.appendChild(opcion);
+  });
+
+  selector.value = filtroAdmin;
+  selector.addEventListener("change", () => {
+    filtroAdmin = selector.value;
+    alCambiar();
+  });
+
+  campo.append(etiqueta, selector);
+  contenedor.appendChild(campo);
+}
+
+function filtrarAdmin(items, coincideMes) {
+  return filtroAdmin === "todos" ? items.slice() : items.filter(coincideMes);
+}
+
+function enMesSeleccionado(fecha) {
+  return fecha.startsWith(fechaLimitesMes().min.slice(0, 7));
+}
+
+/* Una reunión o un evento solo se guarda dentro del mes seleccionado,
+   así que primero se navega al mes del elemento. */
+function editarEnSuMes(item, mostrar) {
+  if (!enMesSeleccionado(item.fecha)) {
+    const [anio, mes] = item.fecha.split("-").map(Number);
+    irAMes(anio, mes - 1);
+  }
+
+  mostrar(item);
+}
+
 function fechaLimitesMes() {
   return {
     min: fechaISO(new Date(
@@ -571,8 +726,8 @@ function fechaLimitesMes() {
 
 /* Cumpleaños */
 
-function mostrarGestionCumpleanos() {
-  const contenedor = limpiarAdmin("Administrar cumpleaños");
+function mostrarGestionCumpleanos(enEdicion = null) {
+  const contenedor = limpiarAdmin("Administrar cumpleaños", () => mostrarGestionCumpleanos());
   if (!contenedor) return;
 
   const formulario = document.createElement("form");
@@ -582,69 +737,77 @@ function mostrarGestionCumpleanos() {
     campoHTML("cumpleNombre", "Nombre completo", "text", 'maxlength="120"') +
     campoHTML("cumpleFecha", "Fecha de nacimiento", "date") +
     `<div class="campo"><label for="cumpleTelefono">Teléfono (opcional)</label><input id="cumpleTelefono" type="tel" maxlength="25"></div>
-    <button class="boton boton-principal" type="submit">Agregar cumpleaños</button>`;
+    <button class="boton boton-principal" type="submit">${enEdicion ? "Guardar cambios" : "Agregar cumpleaños"}</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionCumple" class="boton boton-secundario" type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#cumpleNombre").value = enEdicion.nombre;
+    formulario.querySelector("#cumpleFecha").value = enEdicion.fecha;
+    formulario.querySelector("#cumpleTelefono").value = enEdicion.telefono || "";
+    formulario.querySelector("#cancelarEdicionCumple")
+      .addEventListener("click", () => mostrarGestionCumpleanos());
+  }
 
   formulario.addEventListener("submit", e => {
     e.preventDefault();
 
     const nombre = elemento("cumpleNombre").value.trim();
     const fecha = elemento("cumpleFecha").value;
+    const telefono = elemento("cumpleTelefono").value.trim();
 
-    if (!nombre || !fecha) return;
+    if (!nombre || !validarFecha(fecha)) {
+      mostrarAviso("avisoGeneral", "Revisa el nombre y la fecha.", "error");
+      return;
+    }
 
-    cumpleanos.push({
-      id: idNuevo(),
-      nombre,
-      fecha,
-      telefono: elemento("cumpleTelefono").value.trim()
-    });
+    const datos = { nombre, fecha, telefono };
+    if (enEdicion) Object.assign(enEdicion, datos);
+    else cumpleanos.push({ id: idNuevo(), ...datos });
 
     guardarLocalStorage();
     renderizarTodo();
     mostrarGestionCumpleanos();
-    mostrarAviso("avisoGeneral", "Cumpleaños agregado.", "exito");
+    mostrarAviso("avisoGeneral", enEdicion ? "Cumpleaños actualizado." : "Cumpleaños agregado.", "exito");
   });
 
   contenedor.appendChild(formulario);
 
-  crearListaAdmin(
-    contenedor,
-    cumpleanos.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    x => `<strong>${escaparHTML(x.nombre)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
-    x => {
-      const nombre = prompt("Nombre completo:", x.nombre);
-      if (nombre === null) return;
+  const mesTexto = String(fechaSeleccionada.getMonth() + 1).padStart(2, "0");
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(cumpleanos, x => x.fecha.slice(5, 7) === mesTexto)
+        .sort((a, b) => a.fecha.slice(5).localeCompare(b.fecha.slice(5)) ||
+          a.nombre.localeCompare(b.nombre, "es")),
+      x => `<strong>${escaparHTML(x.nombre)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
+      x => mostrarGestionCumpleanos(x),
+      x => {
+        if (!confirm(`¿Eliminar el cumpleaños de ${x.nombre}?`)) return;
 
-      const fecha = prompt("Fecha (AAAA-MM-DD):", x.fecha);
-      if (fecha === null) return;
-
-      if (!nombre.trim() || !validarFecha(fecha)) {
-        mostrarAviso("avisoGeneral", "Revisa el nombre y la fecha.", "error");
-        return;
+        cumpleanos = cumpleanos.filter(p => p.id !== x.id);
+        guardarLocalStorage();
+        renderizarTodo();
+        mostrarGestionCumpleanos();
       }
+    );
+  };
 
-      x.nombre = nombre.trim();
-      x.fecha = fecha;
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
 
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionCumpleanos();
-    },
-    x => {
-      if (!confirm(`¿Eliminar el cumpleaños de ${x.nombre}?`)) return;
-
-      cumpleanos = cumpleanos.filter(p => p.id !== x.id);
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionCumpleanos();
-    }
-  );
+  if (enEdicion) {
+    formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+    formulario.querySelector("#cumpleNombre").focus({ preventScroll: true });
+  }
 }
 
 /* Reuniones: incluye las actividades antiguas de grupos */
 
-function mostrarGestionReuniones() {
-  const contenedor = limpiarAdmin("Administrar reuniones");
+function mostrarGestionReuniones(enEdicion = null) {
+  const contenedor = limpiarAdmin("Administrar reuniones", () => mostrarGestionReuniones());
   if (!contenedor) return;
 
   const limites = fechaLimitesMes();
@@ -657,7 +820,20 @@ function mostrarGestionReuniones() {
     `<div class="campo"><label for="reunionPredicador">Predicador (opcional)</label><input id="reunionPredicador" maxlength="120"></div>
     <div class="campo"><label for="reunionRefaccion">Responsable de refacción (opcional)</label><input id="reunionRefaccion" maxlength="120"></div>
     <div class="campo campo-checkbox"><label><input id="reunionCancelada" type="checkbox"> No habrá reunión</label></div>
-    <button class="boton boton-principal" type="submit">Agregar reunión</button>`;
+    <button class="boton boton-principal" type="submit">${enEdicion ? "Guardar cambios" : "Agregar reunión"}</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionReunion" class="boton boton-secundario" type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#reunionTitulo").value = enEdicion.titulo || "";
+    formulario.querySelector("#reunionFecha").value = enEdicion.fecha;
+    formulario.querySelector("#reunionPredicador").value = enEdicion.predicador || "";
+    formulario.querySelector("#reunionRefaccion").value = enEdicion.refaccion || "";
+    formulario.querySelector("#reunionCancelada").checked = enEdicion.cancelada;
+    formulario.querySelector("#cancelarEdicionReunion")
+      .addEventListener("click", () => mostrarGestionReuniones());
+  }
 
   formulario.addEventListener("submit", e => {
     e.preventDefault();
@@ -665,21 +841,25 @@ function mostrarGestionReuniones() {
     const fecha = elemento("reunionFecha").value;
     const titulo = elemento("reunionTitulo").value.trim();
 
-    if (!fecha) return;
+    if (!validarFecha(fecha)) {
+      mostrarAviso("avisoGeneral", "Revisa la fecha.", "error");
+      return;
+    }
 
     if (!fecha.startsWith(limites.min.slice(0, 7))) {
       mostrarAviso("avisoGeneral", "La reunión debe pertenecer al mes seleccionado.", "error");
       return;
     }
 
-    reuniones.push({
-      id: idNuevo(),
+    const datos = {
       fecha,
       titulo,
       predicador: elemento("reunionPredicador").value.trim(),
       refaccion: elemento("reunionRefaccion").value.trim(),
       cancelada: elemento("reunionCancelada").checked
-    });
+    };
+    if (enEdicion) Object.assign(enEdicion, datos);
+    else reuniones.push({ id: idNuevo(), ...datos });
 
     guardarLocalStorage();
     renderizarTodo();
@@ -689,56 +869,41 @@ function mostrarGestionReuniones() {
 
   contenedor.appendChild(formulario);
 
-  crearListaAdmin(
-    contenedor,
-    reuniones.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    x =>
-      `<strong>${escaparHTML(formatoFecha(x.fecha))} — ${escaparHTML(tituloReunion(x))}</strong>
-      <p>${x.cancelada ? "Reunión cancelada" : `Predicador: ${escaparHTML(x.predicador || "Por asignar")}`}</p>
-      ${x.cancelada ? "" : `<p>Refacción: ${escaparHTML(x.refaccion || "Por asignar")}</p>`}`,
-    x => {
-      const titulo = prompt("Nombre de la reunión o actividad:", x.titulo || "");
-      if (titulo === null) return;
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(reuniones, x => enMesSeleccionado(x.fecha))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      x =>
+        `<strong>${escaparHTML(formatoFecha(x.fecha))} — ${escaparHTML(tituloReunion(x))}</strong>
+        <p>${x.cancelada ? "Reunión cancelada" : `Predicador: ${escaparHTML(x.predicador || "Por asignar")}`}</p>
+        ${x.cancelada ? "" : `<p>Refacción: ${escaparHTML(x.refaccion || "Por asignar")}</p>`}`,
+      x => editarEnSuMes(x, mostrarGestionReuniones),
+      x => {
+        if (!confirm(`¿Eliminar "${tituloReunion(x)}" del ${formatoFecha(x.fecha)}?`)) return;
 
-      const fecha = prompt("Fecha (AAAA-MM-DD):", x.fecha);
-      if (fecha === null) return;
-
-      if (!validarFecha(fecha)) {
-        mostrarAviso("avisoGeneral", "Revisa la fecha.", "error");
-        return;
+        reuniones = reuniones.filter(r => r.id !== x.id);
+        guardarLocalStorage();
+        renderizarTodo();
+        mostrarGestionReuniones();
       }
+    );
+  };
 
-      const predicador = prompt("Predicador:", x.predicador || "");
-      if (predicador === null) return;
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
 
-      const refaccion = prompt("Responsable de refacción:", x.refaccion || "");
-      if (refaccion === null) return;
-
-      x.titulo = titulo.trim();
-      x.fecha = fecha;
-      x.predicador = predicador.trim();
-      x.refaccion = refaccion.trim();
-      x.cancelada = confirm("¿Marcar la reunión como cancelada? Aceptar = sí.");
-
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionReuniones();
-    },
-    x => {
-      if (!confirm(`¿Eliminar "${tituloReunion(x)}" del ${formatoFecha(x.fecha)}?`)) return;
-
-      reuniones = reuniones.filter(r => r.id !== x.id);
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionReuniones();
-    }
-  );
+  if (enEdicion) {
+    formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+    formulario.querySelector("#reunionTitulo").focus({ preventScroll: true });
+  }
 }
 
 /* Eventos */
 
-function mostrarGestionEventos() {
-  const contenedor = limpiarAdmin("Administrar eventos");
+function mostrarGestionEventos(enEdicion = null) {
+  const contenedor = limpiarAdmin("Administrar eventos", () => mostrarGestionEventos());
   if (!contenedor) return;
 
   const limites = fechaLimitesMes();
@@ -748,7 +913,17 @@ function mostrarGestionEventos() {
   formulario.innerHTML =
     campoHTML("eventoTitulo", "Nombre del evento", "text", 'maxlength="160"') +
     campoHTML("eventoFecha", "Fecha", "date", `min="${limites.min}" max="${limites.max}"`) +
-    `<button class="boton boton-principal" type="submit">Agregar evento</button>`;
+    `<button class="boton boton-principal" type="submit">${enEdicion ? "Guardar cambios" : "Agregar evento"}</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionEvento" class="boton boton-secundario" type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#eventoTitulo").value = enEdicion.titulo;
+    formulario.querySelector("#eventoFecha").value = enEdicion.fecha;
+    formulario.querySelector("#cancelarEdicionEvento")
+      .addEventListener("click", () => mostrarGestionEventos());
+  }
 
   formulario.addEventListener("submit", e => {
     e.preventDefault();
@@ -756,14 +931,18 @@ function mostrarGestionEventos() {
     const titulo = elemento("eventoTitulo").value.trim();
     const fecha = elemento("eventoFecha").value;
 
-    if (!titulo || !fecha) return;
+    if (!titulo || !validarFecha(fecha)) {
+      mostrarAviso("avisoGeneral", "El nombre y la fecha son obligatorios.", "error");
+      return;
+    }
 
     if (!fecha.startsWith(limites.min.slice(0, 7))) {
       mostrarAviso("avisoGeneral", "El evento debe pertenecer al mes seleccionado.", "error");
       return;
     }
 
-    eventos.push({ id: idNuevo(), titulo, fecha });
+    if (enEdicion) Object.assign(enEdicion, { titulo, fecha });
+    else eventos.push({ id: idNuevo(), titulo, fecha });
 
     guardarLocalStorage();
     renderizarTodo();
@@ -773,38 +952,32 @@ function mostrarGestionEventos() {
 
   contenedor.appendChild(formulario);
 
-  crearListaAdmin(
-    contenedor,
-    eventos.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    x => `<strong>${escaparHTML(x.titulo)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
-    x => {
-      const titulo = prompt("Nombre del evento:", x.titulo);
-      if (titulo === null) return;
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(eventos, x => enMesSeleccionado(x.fecha))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      x => `<strong>${escaparHTML(x.titulo)}</strong><p>${escaparHTML(formatoFecha(x.fecha))}</p>`,
+      x => editarEnSuMes(x, mostrarGestionEventos),
+      x => {
+        if (!confirm(`¿Eliminar el evento "${x.titulo}"?`)) return;
 
-      const fecha = prompt("Fecha (AAAA-MM-DD):", x.fecha);
-      if (fecha === null) return;
-
-      if (!titulo.trim() || !validarFecha(fecha)) {
-        mostrarAviso("avisoGeneral", "El nombre y la fecha son obligatorios.", "error");
-        return;
+        eventos = eventos.filter(e => e.id !== x.id);
+        guardarLocalStorage();
+        renderizarTodo();
+        mostrarGestionEventos();
       }
+    );
+  };
 
-      x.titulo = titulo.trim();
-      x.fecha = fecha;
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
 
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionEventos();
-    },
-    x => {
-      if (!confirm(`¿Eliminar el evento "${x.titulo}"?`)) return;
-
-      eventos = eventos.filter(e => e.id !== x.id);
-      guardarLocalStorage();
-      renderizarTodo();
-      mostrarGestionEventos();
-    }
-  );
+  if (enEdicion) {
+    formulario.scrollIntoView({ behavior: "smooth", block: "start" });
+    formulario.querySelector("#eventoTitulo").focus({ preventScroll: true });
+  }
 }
 
 function validarFecha(fecha) {
@@ -812,6 +985,220 @@ function validarFecha(fecha) {
 
   const d = new Date(`${fecha}T12:00:00`);
   return !Number.isNaN(d.getTime()) && fechaISO(d) === fecha;
+}
+
+/* =========================
+   CALENDARIOS EXTERNOS
+   Google Calendar (enlace) y Apple Calendar / otros (archivo .ics)
+   ========================= */
+
+function actividadCalendario(categoria, datos) {
+  if (categoria === "cumple") {
+    // Se usa la fecha de este año para que Google muestre el próximo cumpleaños.
+    const delAnio = `${fechaSeleccionada.getFullYear()}-${datos.fecha.slice(5)}`;
+
+    return {
+      uid: `cumple-${datos.id}@hope-calendar`,
+      titulo: `Cumpleaños de ${datos.nombre}`,
+      descripcion: "Cumpleaños registrado en Hope Calendar.",
+      fecha: validarFecha(delAnio) ? delAnio : datos.fecha,
+      fechaInicial: datos.fecha,
+      anual: true
+    };
+  }
+
+  if (categoria === "reunion") {
+    return {
+      uid: `reunion-${datos.id}@hope-calendar`,
+      titulo: `${tituloReunion(datos)} — Hope Group`,
+      descripcion: `Predicador: ${datos.predicador || "Por asignar"}\nRefacción: ${datos.refaccion || "Por asignar"}`,
+      fecha: datos.fecha,
+      anual: false
+    };
+  }
+
+  return {
+    uid: `evento-${datos.id}@hope-calendar`,
+    titulo: `${datos.titulo || "Evento"} — Hope Group`,
+    descripcion: "Evento de Hope Group.",
+    fecha: datos.fecha,
+    anual: false
+  };
+}
+
+function fechaCompacta(fecha) {
+  return fecha.replaceAll("-", "");
+}
+
+function diaSiguiente(fecha) {
+  const d = new Date(`${fecha}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  return fechaISO(d);
+}
+
+function enlaceGoogleCalendar(actividad) {
+  const parametros = new URLSearchParams({
+    action: "TEMPLATE",
+    text: actividad.titulo,
+    dates: `${fechaCompacta(actividad.fecha)}/${fechaCompacta(diaSiguiente(actividad.fecha))}`,
+    details: actividad.descripcion
+  });
+
+  if (actividad.anual) parametros.set("recur", "RRULE:FREQ=YEARLY");
+
+  return `https://calendar.google.com/calendar/render?${parametros}`;
+}
+
+function escaparICS(texto) {
+  return String(texto ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+/* RFC 5545: máximo 75 bytes por línea; las continuaciones empiezan con un espacio.
+   Se cuentan bytes UTF-8 para no partir letras con tilde. */
+function plegarLineaICS(linea) {
+  const codificador = new TextEncoder();
+  const partes = [];
+  let actual = "";
+
+  for (const caracter of linea) {
+    const limite = partes.length ? 74 : 75;
+
+    if (codificador.encode(actual + caracter).length > limite) {
+      partes.push(actual);
+      actual = "";
+    }
+
+    actual += caracter;
+  }
+
+  partes.push(actual);
+  return partes.join("\r\n ");
+}
+
+function generarICS(actividades) {
+  const sello = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+  const lineas = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Hope Group//Hope Calendar//ES",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Hope Group"
+  ];
+
+  actividades.forEach(actividad => {
+    // Los cumpleaños se repiten desde la fecha de nacimiento.
+    const inicio = actividad.anual ? actividad.fechaInicial : actividad.fecha;
+
+    lineas.push(
+      "BEGIN:VEVENT",
+      `UID:${actividad.uid}`,
+      `DTSTAMP:${sello}`,
+      `DTSTART;VALUE=DATE:${fechaCompacta(inicio)}`,
+      `DTEND;VALUE=DATE:${fechaCompacta(diaSiguiente(inicio))}`,
+      `SUMMARY:${escaparICS(actividad.titulo)}`,
+      `DESCRIPTION:${escaparICS(actividad.descripcion)}`,
+      ...(actividad.anual ? ["RRULE:FREQ=YEARLY"] : []),
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT"
+    );
+  });
+
+  lineas.push("END:VCALENDAR");
+
+  return lineas.map(plegarLineaICS).join("\r\n") + "\r\n";
+}
+
+function descargarICS(actividades, nombre) {
+  descargarArchivo(generarICS(actividades), nombre, "text/calendar;charset=utf-8");
+}
+
+function crearAccionesCalendario(categoria, datos) {
+  const actividad = actividadCalendario(categoria, datos);
+  const acciones = document.createElement("div");
+  acciones.className = "acciones-calendario";
+
+  const google = document.createElement("a");
+  google.className = "boton boton-borde";
+  google.href = enlaceGoogleCalendar(actividad);
+  google.target = "_blank";
+  google.rel = "noopener noreferrer";
+  google.textContent = "Google Calendar";
+
+  const apple = document.createElement("button");
+  apple.type = "button";
+  apple.className = "boton boton-borde";
+  apple.textContent = "Apple / .ics";
+  apple.addEventListener("click", () =>
+    descargarICS([actividad], `hope-${categoria}-${actividad.fecha}.ics`)
+  );
+
+  acciones.append(google, apple);
+  return acciones;
+}
+
+function mostrarExportarCalendario() {
+  const contenedor = limpiarAdmin("Añadir a mi calendario", mostrarExportarCalendario);
+  if (!contenedor) return;
+
+  const nombreMes = `${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`;
+
+  const formulario = document.createElement("form");
+  formulario.className = "formulario";
+  formulario.innerHTML =
+    `<p class="texto-secundario">Descarga un archivo .ics con las reuniones, los eventos y los cumpleaños. Los cumpleaños se repiten cada año y las reuniones canceladas no se incluyen.</p>
+    <div class="campo"><label for="icsAlcance">Qué incluir</label>
+      <select id="icsAlcance">
+        <option value="mes">Solo ${escaparHTML(nombreMes)}</option>
+        <option value="todo">Todo lo guardado</option>
+      </select></div>
+    <div class="campo campo-checkbox"><label><input id="icsCumpleanos" type="checkbox" checked> Incluir cumpleaños</label></div>
+    <button class="boton boton-principal" type="submit">Descargar archivo .ics</button>
+    <p class="texto-secundario"><strong>Apple Calendar:</strong> abre el archivo descargado y elige el calendario.</p>
+    <p class="texto-secundario"><strong>Google Calendar:</strong> en la web, ve a Configuración → Importar y exportar y sube el archivo.
+      <a href="https://calendar.google.com/calendar/r/settings/export" target="_blank" rel="noopener noreferrer">Abrir Google Calendar</a></p>`;
+
+  formulario.addEventListener("submit", e => {
+    e.preventDefault();
+
+    const soloMes = elemento("icsAlcance").value === "mes";
+    const mesTexto = String(fechaSeleccionada.getMonth() + 1).padStart(2, "0");
+
+    const actividades = [
+      ...reuniones
+        .filter(x => !x.cancelada && (!soloMes || enMesSeleccionado(x.fecha)))
+        .map(x => actividadCalendario("reunion", x)),
+      ...eventos
+        .filter(x => !soloMes || enMesSeleccionado(x.fecha))
+        .map(x => actividadCalendario("evento", x)),
+      ...(elemento("icsCumpleanos").checked
+        ? cumpleanos
+            .filter(x => !soloMes || x.fecha.slice(5, 7) === mesTexto)
+            .map(x => actividadCalendario("cumple", x))
+        : [])
+    ];
+
+    if (!actividades.length) {
+      mostrarAviso("avisoGeneral", "No hay actividades para exportar con esas opciones.", "error");
+      return;
+    }
+
+    descargarICS(
+      actividades,
+      soloMes
+        ? `hope-calendar-${fechaSeleccionada.getFullYear()}-${mesTexto}.ics`
+        : "hope-calendar-todo.ics"
+    );
+
+    mostrarAviso("avisoGeneral", `Archivo .ics descargado con ${actividades.length} actividades.`, "exito");
+  });
+
+  contenedor.appendChild(formulario);
 }
 
 /* =========================
@@ -902,39 +1289,7 @@ function mostrarAvisoDocumentos() {
         return;
       }
 
-      reuniones = datos.reuniones.slice();
-      cumpleanos = datos.cumpleanos;
-      eventos = datos.eventos;
-      planesMes = Array.isArray(datos.planesMes) ? datos.planesMes : [];
-
-      // También migra los grupos incluidos en respaldos antiguos.
-      const gruposAntiguos = Array.isArray(datos.grupos) ? datos.grupos : [];
-
-      gruposAntiguos.forEach(grupo => {
-        if (!grupo || !grupo.fecha) return;
-
-        const yaExiste = reuniones.some(
-          reunion =>
-            reunion.id === grupo.id ||
-            (
-              reunion.fecha === grupo.fecha &&
-              reunion.titulo === grupo.titulo &&
-              reunion.migradoDeGrupo === true
-            )
-        );
-
-        if (!yaExiste) {
-          reuniones.push({
-            id: grupo.id || idNuevo(),
-            fecha: grupo.fecha,
-            titulo: grupo.titulo || "Reunión",
-            predicador: "",
-            refaccion: "",
-            cancelada: false,
-            migradoDeGrupo: true
-          });
-        }
-      });
+      cargarDatos(datos);
 
       if (!guardarLocalStorage()) return;
 
@@ -1157,4 +1512,3 @@ function imprimirCalendario() {
     )
   ).then(() => setTimeout(() => window.print(), 100));
 }
-
