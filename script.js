@@ -207,6 +207,7 @@ function configurarEventos() {
   escuchar("btnGestionarEventos", "click", () => mostrarGestionEventos());
   escuchar("btnExportar", "click", exportarCumpleanosCSV);
   escuchar("btnGestionarDocumento", "click", mostrarAvisoDocumentos);
+  escuchar("btnCalendarioExterno", "click", mostrarExportarCalendario);
 }
 
 function configurarSelectores() {
@@ -547,6 +548,11 @@ function renderizarDetalleDia(fecha) {
     }
 
     tarjeta.append(encabezado, parrafo);
+
+    if (!(categoria === "reunion" && datos.cancelada)) {
+      tarjeta.appendChild(crearAccionesCalendario(categoria, datos));
+    }
+
     detalle.appendChild(tarjeta);
   });
 }
@@ -979,6 +985,220 @@ function validarFecha(fecha) {
 
   const d = new Date(`${fecha}T12:00:00`);
   return !Number.isNaN(d.getTime()) && fechaISO(d) === fecha;
+}
+
+/* =========================
+   CALENDARIOS EXTERNOS
+   Google Calendar (enlace) y Apple Calendar / otros (archivo .ics)
+   ========================= */
+
+function actividadCalendario(categoria, datos) {
+  if (categoria === "cumple") {
+    // Se usa la fecha de este año para que Google muestre el próximo cumpleaños.
+    const delAnio = `${fechaSeleccionada.getFullYear()}-${datos.fecha.slice(5)}`;
+
+    return {
+      uid: `cumple-${datos.id}@hope-calendar`,
+      titulo: `Cumpleaños de ${datos.nombre}`,
+      descripcion: "Cumpleaños registrado en Hope Calendar.",
+      fecha: validarFecha(delAnio) ? delAnio : datos.fecha,
+      fechaInicial: datos.fecha,
+      anual: true
+    };
+  }
+
+  if (categoria === "reunion") {
+    return {
+      uid: `reunion-${datos.id}@hope-calendar`,
+      titulo: `${tituloReunion(datos)} — Hope Group`,
+      descripcion: `Predicador: ${datos.predicador || "Por asignar"}\nRefacción: ${datos.refaccion || "Por asignar"}`,
+      fecha: datos.fecha,
+      anual: false
+    };
+  }
+
+  return {
+    uid: `evento-${datos.id}@hope-calendar`,
+    titulo: `${datos.titulo || "Evento"} — Hope Group`,
+    descripcion: "Evento de Hope Group.",
+    fecha: datos.fecha,
+    anual: false
+  };
+}
+
+function fechaCompacta(fecha) {
+  return fecha.replaceAll("-", "");
+}
+
+function diaSiguiente(fecha) {
+  const d = new Date(`${fecha}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  return fechaISO(d);
+}
+
+function enlaceGoogleCalendar(actividad) {
+  const parametros = new URLSearchParams({
+    action: "TEMPLATE",
+    text: actividad.titulo,
+    dates: `${fechaCompacta(actividad.fecha)}/${fechaCompacta(diaSiguiente(actividad.fecha))}`,
+    details: actividad.descripcion
+  });
+
+  if (actividad.anual) parametros.set("recur", "RRULE:FREQ=YEARLY");
+
+  return `https://calendar.google.com/calendar/render?${parametros}`;
+}
+
+function escaparICS(texto) {
+  return String(texto ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+/* RFC 5545: máximo 75 bytes por línea; las continuaciones empiezan con un espacio.
+   Se cuentan bytes UTF-8 para no partir letras con tilde. */
+function plegarLineaICS(linea) {
+  const codificador = new TextEncoder();
+  const partes = [];
+  let actual = "";
+
+  for (const caracter of linea) {
+    const limite = partes.length ? 74 : 75;
+
+    if (codificador.encode(actual + caracter).length > limite) {
+      partes.push(actual);
+      actual = "";
+    }
+
+    actual += caracter;
+  }
+
+  partes.push(actual);
+  return partes.join("\r\n ");
+}
+
+function generarICS(actividades) {
+  const sello = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+  const lineas = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Hope Group//Hope Calendar//ES",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Hope Group"
+  ];
+
+  actividades.forEach(actividad => {
+    // Los cumpleaños se repiten desde la fecha de nacimiento.
+    const inicio = actividad.anual ? actividad.fechaInicial : actividad.fecha;
+
+    lineas.push(
+      "BEGIN:VEVENT",
+      `UID:${actividad.uid}`,
+      `DTSTAMP:${sello}`,
+      `DTSTART;VALUE=DATE:${fechaCompacta(inicio)}`,
+      `DTEND;VALUE=DATE:${fechaCompacta(diaSiguiente(inicio))}`,
+      `SUMMARY:${escaparICS(actividad.titulo)}`,
+      `DESCRIPTION:${escaparICS(actividad.descripcion)}`,
+      ...(actividad.anual ? ["RRULE:FREQ=YEARLY"] : []),
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT"
+    );
+  });
+
+  lineas.push("END:VCALENDAR");
+
+  return lineas.map(plegarLineaICS).join("\r\n") + "\r\n";
+}
+
+function descargarICS(actividades, nombre) {
+  descargarArchivo(generarICS(actividades), nombre, "text/calendar;charset=utf-8");
+}
+
+function crearAccionesCalendario(categoria, datos) {
+  const actividad = actividadCalendario(categoria, datos);
+  const acciones = document.createElement("div");
+  acciones.className = "acciones-calendario";
+
+  const google = document.createElement("a");
+  google.className = "boton boton-borde";
+  google.href = enlaceGoogleCalendar(actividad);
+  google.target = "_blank";
+  google.rel = "noopener noreferrer";
+  google.textContent = "Google Calendar";
+
+  const apple = document.createElement("button");
+  apple.type = "button";
+  apple.className = "boton boton-borde";
+  apple.textContent = "Apple / .ics";
+  apple.addEventListener("click", () =>
+    descargarICS([actividad], `hope-${categoria}-${actividad.fecha}.ics`)
+  );
+
+  acciones.append(google, apple);
+  return acciones;
+}
+
+function mostrarExportarCalendario() {
+  const contenedor = limpiarAdmin("Añadir a mi calendario", mostrarExportarCalendario);
+  if (!contenedor) return;
+
+  const nombreMes = `${MESES[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`;
+
+  const formulario = document.createElement("form");
+  formulario.className = "formulario";
+  formulario.innerHTML =
+    `<p class="texto-secundario">Descarga un archivo .ics con las reuniones, los eventos y los cumpleaños. Los cumpleaños se repiten cada año y las reuniones canceladas no se incluyen.</p>
+    <div class="campo"><label for="icsAlcance">Qué incluir</label>
+      <select id="icsAlcance">
+        <option value="mes">Solo ${escaparHTML(nombreMes)}</option>
+        <option value="todo">Todo lo guardado</option>
+      </select></div>
+    <div class="campo campo-checkbox"><label><input id="icsCumpleanos" type="checkbox" checked> Incluir cumpleaños</label></div>
+    <button class="boton boton-principal" type="submit">Descargar archivo .ics</button>
+    <p class="texto-secundario"><strong>Apple Calendar:</strong> abre el archivo descargado y elige el calendario.</p>
+    <p class="texto-secundario"><strong>Google Calendar:</strong> en la web, ve a Configuración → Importar y exportar y sube el archivo.
+      <a href="https://calendar.google.com/calendar/r/settings/export" target="_blank" rel="noopener noreferrer">Abrir Google Calendar</a></p>`;
+
+  formulario.addEventListener("submit", e => {
+    e.preventDefault();
+
+    const soloMes = elemento("icsAlcance").value === "mes";
+    const mesTexto = String(fechaSeleccionada.getMonth() + 1).padStart(2, "0");
+
+    const actividades = [
+      ...reuniones
+        .filter(x => !x.cancelada && (!soloMes || enMesSeleccionado(x.fecha)))
+        .map(x => actividadCalendario("reunion", x)),
+      ...eventos
+        .filter(x => !soloMes || enMesSeleccionado(x.fecha))
+        .map(x => actividadCalendario("evento", x)),
+      ...(elemento("icsCumpleanos").checked
+        ? cumpleanos
+            .filter(x => !soloMes || x.fecha.slice(5, 7) === mesTexto)
+            .map(x => actividadCalendario("cumple", x))
+        : [])
+    ];
+
+    if (!actividades.length) {
+      mostrarAviso("avisoGeneral", "No hay actividades para exportar con esas opciones.", "error");
+      return;
+    }
+
+    descargarICS(
+      actividades,
+      soloMes
+        ? `hope-calendar-${fechaSeleccionada.getFullYear()}-${mesTexto}.ics`
+        : "hope-calendar-todo.ics"
+    );
+
+    mostrarAviso("avisoGeneral", `Archivo .ics descargado con ${actividades.length} actividades.`, "exito");
+  });
+
+  contenedor.appendChild(formulario);
 }
 
 /* =========================

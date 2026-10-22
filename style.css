@@ -653,6 +653,18 @@ img {
   color: var(--texto-secundario);
   font-size: 12px;
 }
+.acciones-calendario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.acciones-calendario .boton {
+  min-height: 32px;
+  padding: 6px 11px;
+  font-size: 12px;
+  text-decoration: none;
+}
 .detalle-reunion {
   border-left-color: var(--reunion);
 }
