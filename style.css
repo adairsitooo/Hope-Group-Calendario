@@ -1426,3 +1426,30 @@ img {
     text-decoration: none !important;
   }
 }
+
+
+/* ==============================
+   PLANNING — COLOR ROJO
+   ============================== */
+
+/* Marcador del planning en el calendario */
+.marca-planning {
+  background-color: #dc2626;
+}
+
+/* Punto rojo de la leyenda */
+.punto-planning {
+  background-color: #dc2626;
+}
+
+/* Detalle del planning */
+.detalle-planning {
+  border-left: 4px solid #dc2626;
+}
+
+/* Planning en el PDF */
+.reporte-marca-planning {
+  color: #991b1b;
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+}
