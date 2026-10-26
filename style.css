@@ -1434,7 +1434,13 @@ img {
 
 /* Marcador del planning en el calendario */
 .marca-planning {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  border-radius: 50%;
   background-color: #dc2626;
+  flex-shrink: 0;
 }
 
 /* Punto rojo de la leyenda */
