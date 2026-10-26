@@ -18,6 +18,7 @@ let fechaSeleccionada = new Date();
 let reuniones = [];
 let cumpleanos = [];
 let eventos = [];
+let plannings = [];
 let planesMes = [];
 const temporizadoresAviso = new Map();
 let panelAdminActual = null;
@@ -131,8 +132,25 @@ function cargarDatos(datos) {
         ? item.titulo : "Evento"
     }));
 
+    plannings = (Array.isArray(datos.plannings) ? datos.plannings : [])
+    .filter(item =>
+      item &&
+      typeof item === "object" &&
+      !Array.isArray(item) &&
+      validarFecha(item.fecha) &&
+      typeof item.predicador === "string" &&
+      item.predicador.trim()
+    )
+    .map(item => ({
+      ...item,
+      id: item.id || idNuevo(),
+      predicador: item.predicador.trim()
+    }));
+
   planesMes = (Array.isArray(datos.planesMes) ? datos.planesMes : [])
     .filter(item => item && typeof item === "object" && !Array.isArray(item));
+
+  return migrarGrupos(datos.grupos);
 
   return migrarGrupos(datos.grupos);
 }
@@ -175,7 +193,7 @@ function guardarLocalStorage() {
   try {
     localStorage.setItem(
       CLAVE_DATOS,
-      JSON.stringify({ reuniones, cumpleanos, eventos, planesMes })
+      JSON.stringify({reuniones, cumpleanos, eventos, plannings, planesMes})
     );
 
     cambiarEstadoConexion("Cambios guardados localmente");
@@ -205,6 +223,7 @@ function configurarEventos() {
   escuchar("btnGestionarCumpleanos", "click", () => mostrarGestionCumpleanos());
   escuchar("btnGestionarReuniones", "click", () => mostrarGestionReuniones());
   escuchar("btnGestionarEventos", "click", () => mostrarGestionEventos());
+  escuchar("btnGestionarPlanning", "click", () => mostrarGestionPlanning());
   escuchar("btnExportar", "click", exportarCumpleanosCSV);
   escuchar("btnGestionarDocumento", "click", mostrarAvisoDocumentos);
   escuchar("btnCalendarioExterno", "click", mostrarExportarCalendario);
@@ -374,6 +393,10 @@ function actividadesFecha(fecha) {
       .filter(x => x.fecha === fecha)
       .map(x => ({ categoria: "reunion", datos: x })),
 
+    ...plannings
+      .filter(x => x.fecha === fecha)
+      .map(x => ({ categoria: "planning", datos: x })),
+
     ...eventos
       .filter(x => x.fecha === fecha)
       .map(x => ({ categoria: "evento", datos: x })),
@@ -466,6 +489,10 @@ function renderizarCalendario() {
       .filter(x => x.fecha === fecha)
       .forEach(x => agregarMarca(marcas, "marca-evento", x.titulo || "Evento"));
 
+     plannings
+  .filter(x => x.fecha === fecha)
+  .forEach(x => agregarMarca(marcas, "marca-planning", `Planning: ${x.predicador || "Sin predicador"}`));
+     
     celda.appendChild(marcas);
 
     celda.addEventListener("click", () => {
@@ -536,7 +563,12 @@ function renderizarDetalleDia(fecha) {
         ? "Esta reunión está cancelada."
         : `Predicador: ${datos.predicador || "Por asignar"} · Refacción: ${datos.refaccion || "Por asignar"}`;
     }
-
+     
+    if (categoria === "planning") {
+      encabezado.textContent = "Planning";
+      parrafo.textContent = `Predicador: ${datos.predicador}`;
+    }
+     
     if (categoria === "evento") {
       encabezado.textContent = datos.titulo || "Evento";
       parrafo.textContent = "Evento programado";
@@ -900,6 +932,151 @@ function mostrarGestionReuniones(enEdicion = null) {
   }
 }
 
+/* Planning */
+
+function mostrarGestionPlanning(enEdicion = null) {
+  const contenedor = limpiarAdmin(
+    "Administrar planning",
+    () => mostrarGestionPlanning()
+  );
+
+  if (!contenedor) return;
+
+  const limites = fechaLimitesMes();
+  const formulario = document.createElement("form");
+  formulario.className = "formulario";
+
+  formulario.innerHTML =
+    campoHTML(
+      "planningPredicador",
+      "¿Quién va a predicar?",
+      "text",
+      'maxlength="120"'
+    ) +
+    campoHTML(
+      "planningFecha",
+      "Fecha del planning",
+      "date",
+      `min="${limites.min}" max="${limites.max}"`
+    ) +
+    `<button class="boton boton-principal" type="submit">${
+      enEdicion ? "Guardar cambios" : "Agregar planning"
+    }</button>` +
+    (enEdicion
+      ? `<button id="cancelarEdicionPlanning"
+          class="boton boton-secundario"
+          type="button">Cancelar edición</button>`
+      : "");
+
+  if (enEdicion) {
+    formulario.querySelector("#planningPredicador").value =
+      enEdicion.predicador;
+
+    formulario.querySelector("#planningFecha").value =
+      enEdicion.fecha;
+
+    formulario.querySelector("#cancelarEdicionPlanning")
+      .addEventListener("click", () => mostrarGestionPlanning());
+  }
+
+  formulario.addEventListener("submit", e => {
+    e.preventDefault();
+
+    const predicador =
+      elemento("planningPredicador").value.trim();
+
+    const fecha =
+      elemento("planningFecha").value;
+
+    if (!predicador || !validarFecha(fecha)) {
+      mostrarAviso(
+        "avisoGeneral",
+        "El predicador y la fecha son obligatorios.",
+        "error"
+      );
+      return;
+    }
+
+    if (!fecha.startsWith(limites.min.slice(0, 7))) {
+      mostrarAviso(
+        "avisoGeneral",
+        "El planning debe pertenecer al mes seleccionado.",
+        "error"
+      );
+      return;
+    }
+
+    const datos = { fecha, predicador };
+
+    if (enEdicion) {
+      Object.assign(enEdicion, datos);
+    } else {
+      plannings.push({
+        id: idNuevo(),
+        ...datos
+      });
+    }
+
+    if (!guardarLocalStorage()) return;
+
+    renderizarTodo();
+    mostrarGestionPlanning();
+
+    mostrarAviso(
+      "avisoGeneral",
+      enEdicion ? "Planning actualizado." : "Planning agregado.",
+      "exito"
+    );
+  });
+
+  contenedor.appendChild(formulario);
+
+  const pintarLista = () => {
+    contenedor.querySelector(".lista-administracion")?.remove();
+
+    crearListaAdmin(
+      contenedor,
+      filtrarAdmin(
+        plannings,
+        x => enMesSeleccionado(x.fecha)
+      ).sort((a, b) => a.fecha.localeCompare(b.fecha)),
+
+      x => `
+        <strong>${escaparHTML(formatoFecha(x.fecha))}</strong>
+        <p>Predicador: ${escaparHTML(x.predicador)}</p>
+      `,
+
+      x => editarEnSuMes(x, mostrarGestionPlanning),
+
+      x => {
+        if (!confirm(
+          `¿Eliminar el planning del ${formatoFecha(x.fecha)}?`
+        )) return;
+
+        plannings = plannings.filter(p => p.id !== x.id);
+
+        if (!guardarLocalStorage()) return;
+
+        renderizarTodo();
+        mostrarGestionPlanning();
+      }
+    );
+  };
+
+  crearFiltroAdmin(contenedor, pintarLista);
+  pintarLista();
+
+  if (enEdicion) {
+    formulario.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+
+    formulario.querySelector("#planningPredicador")
+      .focus({ preventScroll: true });
+  }
+}
+
 /* Eventos */
 
 function mostrarGestionEventos(enEdicion = null) {
@@ -993,6 +1170,16 @@ function validarFecha(fecha) {
    ========================= */
 
 function actividadCalendario(categoria, datos) {
+    if (categoria === "planning") {
+    return {
+      uid: `planning-${datos.id}@hope-calendar`,
+      titulo: `Planning — Predicador: ${datos.predicador}`,
+      descripcion: `Predicador: ${datos.predicador}`,
+      fecha: datos.fecha,
+      anual: false
+    };
+  } 
+   
   if (categoria === "cumple") {
     // Se usa la fecha de este año para que Google muestre el próximo cumpleaños.
     const delAnio = `${fechaSeleccionada.getFullYear()}-${datos.fecha.slice(5)}`;
@@ -1173,6 +1360,9 @@ function mostrarExportarCalendario() {
       ...reuniones
         .filter(x => !x.cancelada && (!soloMes || enMesSeleccionado(x.fecha)))
         .map(x => actividadCalendario("reunion", x)),
+      ...plannings
+        .filter(x => !soloMes || enMesSeleccionado(x.fecha))
+        .map(x => actividadCalendario("planning", x)),
       ...eventos
         .filter(x => !soloMes || enMesSeleccionado(x.fecha))
         .map(x => actividadCalendario("evento", x)),
@@ -1254,7 +1444,7 @@ function mostrarAvisoDocumentos() {
 
   exportar.addEventListener("click", () => {
     descargarArchivo(
-      JSON.stringify({ reuniones, cumpleanos, eventos, planesMes }, null, 2),
+      JSON.stringify({reuniones, cumpleanos, eventos, plannings, planesMes}, null, 2),
       `hope-calendar-respaldo-${fechaISO(new Date())}.json`,
       "application/json"
     );
@@ -1279,7 +1469,8 @@ function mostrarAvisoDocumentos() {
         !Array.isArray(datos.reuniones) ||
         !Array.isArray(datos.cumpleanos) ||
         !Array.isArray(datos.eventos) ||
-        (datos.grupos !== undefined && !Array.isArray(datos.grupos))
+        (datos.grupos !== undefined && !Array.isArray(datos.grupos)) ||
+        (datos.plannings !== undefined && !Array.isArray(datos.plannings)) ||
       ) {
         throw new Error("El archivo no tiene el formato esperado.");
       }
@@ -1329,7 +1520,9 @@ function imprimirCalendario() {
   const reunionesMes = reuniones
     .filter(x => x.fecha?.startsWith(prefijo))
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
-
+  const planningsMes = plannings
+    .filter(x => x.fecha?.startsWith(prefijo))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
   const eventosMes = eventos
     .filter(x => x.fecha?.startsWith(prefijo))
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -1363,6 +1556,12 @@ function imprimirCalendario() {
           `<div class="reporte-marca reporte-marca-reunion">${escaparHTML(tituloReunion(x))}${x.cancelada ? " — Cancelada" : ""}</div>`
         ),
 
+      ...planningsMes
+        .filter(x => x.fecha === fecha)
+        .map(x =>
+          `<div class="reporte-marca reporte-marca-planning">Planning: ${escaparHTML(x.predicador)}</div>`
+        ),
+
       ...eventosMes
         .filter(x => x.fecha === fecha)
         .map(x =>
@@ -1390,6 +1589,7 @@ function imprimirCalendario() {
 
   const actividades = [
     ...reunionesMes.map(x => ({ fecha: x.fecha, tipo: "reunion", datos: x })),
+    ...planningsMes.map(x => ({ fecha: x.fecha, tipo: "planning", datos: x })),
     ...eventosMes.map(x => ({ fecha: x.fecha, tipo: "evento", datos: x }))
   ].sort((a, b) =>
     a.fecha.localeCompare(b.fecha) || a.tipo.localeCompare(b.tipo)
@@ -1408,6 +1608,11 @@ function imprimirCalendario() {
             ? "<p>Esta reunión está cancelada.</p>"
             : `<p><strong>Predicador:</strong> ${escaparHTML(datos.predicador || "Por asignar")}</p>
                <p><strong>Responsable de refacción:</strong> ${escaparHTML(datos.refaccion || "Por asignar")}</p>`;
+        }
+       
+               if (x.tipo === "planning") {
+          titulo = "Planning";
+          detalle = `<p><strong>Predicador:</strong> ${escaparHTML(datos.predicador)}</p>`;
         }
 
         if (x.tipo === "evento") {
@@ -1469,6 +1674,7 @@ function imprimirCalendario() {
           <span>Reuniones</span>
           <span>Eventos</span>
           <span>Cumpleaños</span>
+          <span>Planning</span>
         </div>
       </section>
 
