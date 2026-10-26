@@ -1469,7 +1469,7 @@ function mostrarAvisoDocumentos() {
         !Array.isArray(datos.reuniones) ||
         !Array.isArray(datos.cumpleanos) ||
         !Array.isArray(datos.eventos) ||
-        (datos.grupos !== undefined && !Array.isArray(datos.grupos))
+        (datos.grupos !== undefined && !Array.isArray(datos.grupos)) ||
         (datos.plannings !== undefined && !Array.isArray(datos.plannings))
       ) {
         throw new Error("El archivo no tiene el formato esperado.");
