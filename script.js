@@ -490,8 +490,8 @@ function renderizarCalendario() {
       .forEach(x => agregarMarca(marcas, "marca-evento", x.titulo || "Evento"));
 
      plannings
-  .filter(x => x.fecha === fecha)
-  .forEach(x => agregarMarca(marcas, "marca-planning", `Planning: ${x.predicador || "Sin predicador"}`));
+      .filter(x => x.fecha === fecha)
+      .forEach(x => agregarMarca(marcas, "marca-planning", "Planning"));
      
     celda.appendChild(marcas);
 
