@@ -1559,7 +1559,7 @@ function imprimirCalendario() {
       ...planningsMes
         .filter(x => x.fecha === fecha)
         .map(x =>
-          `<div class="reporte-marca reporte-marca-planning">Planning: ${escaparHTML(x.predicador)}</div>`
+          `<div class="reporte-marca reporte-marca-planning">Planning</div>`
         ),
 
       ...eventosMes
